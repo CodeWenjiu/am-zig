@@ -6,9 +6,14 @@ const Isa = lib.Isa;
 
 pub fn build(b: *std.Build) void {
     const platform = optionOrExit(b, Platform, "platform", "Select the platform");
-    const isa = optionOrExit(b, Isa, "isa", "Select the ISA");
 
-    _ = isa;
+    const isa: ?Isa = b.option(Isa, "isa", "Select the ISA (required for non-native platforms; forbidden for native)");
+
+    if (platform == .native) {
+        forbidOption(Isa, "isa", isa, "native ISA is determined by the host");
+    } else {
+        _ = requireOptionOrExit(Isa, "isa", isa);
+    }
 
     const optimize = .ReleaseFast;
 
@@ -21,8 +26,6 @@ pub fn build(b: *std.Build) void {
         }),
     };
 
-    const code_model: std.builtin.CodeModel = if (platform == .nemu) .medium else .default;
-
     const lib_mod = b.createModule(.{
         .root_source_file = b.path("platform/lib.zig"),
     });
@@ -31,7 +34,6 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
-        .code_model = code_model,
     });
     app_mod.addImport("platform_lib", lib_mod);
 
@@ -39,7 +41,6 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path(b.fmt("platform/{s}/runtime.zig", .{@tagName(platform)})),
         .target = target,
         .optimize = optimize,
-        .code_model = code_model,
     });
 
     entry_mod.addImport("app", app_mod);
@@ -81,15 +82,28 @@ pub fn build(b: *std.Build) void {
 }
 
 fn optionOrExit(b: *std.Build, comptime T: type, name: []const u8, desc: []const u8) T {
-    return b.option(T, name, desc) orelse {
-        std.debug.print("Missing required argument: -D{s}=<{s}>\n", .{ name, name });
-        std.debug.print("Available options: ", .{});
-        const fields = @typeInfo(T).@"enum".fields;
-        inline for (fields, 0..) |field, i| {
-            std.debug.print("[{s}]", .{field.name});
-            if (i < fields.len - 1) std.debug.print(" | ", .{});
-        }
-        std.debug.print("\n", .{});
+    return b.option(T, name, desc) orelse missingOptionExit(T, name);
+}
+
+fn requireOptionOrExit(comptime T: type, name: []const u8, value: ?T) T {
+    return value orelse missingOptionExit(T, name);
+}
+
+fn forbidOption(comptime T: type, name: []const u8, value: ?T, reason: []const u8) void {
+    if (value != null) {
+        std.debug.print("Invalid argument: -D{s} is not allowed ({s})\n", .{ name, reason });
         std.process.exit(1);
-    };
+    }
+}
+
+fn missingOptionExit(comptime T: type, name: []const u8) noreturn {
+    std.debug.print("Missing required argument: -D{s}=<{s}>\n", .{ name, name });
+    std.debug.print("Available options: ", .{});
+    const fields = @typeInfo(T).@"enum".fields;
+    inline for (fields, 0..) |field, i| {
+        std.debug.print("[{s}]", .{field.name});
+        if (i < fields.len - 1) std.debug.print(" | ", .{});
+    }
+    std.debug.print("\n", .{});
+    std.process.exit(1);
 }

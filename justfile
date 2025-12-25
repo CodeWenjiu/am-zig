@@ -11,7 +11,7 @@ dump platform="nemu":
 
 # Run the native application
 run:
-    @zig build run -Dplatform=native -Disa=rv32i
+    @zig build run -Dplatform=native
 
 clean:
     @rm -rf zig-out .zig-cache

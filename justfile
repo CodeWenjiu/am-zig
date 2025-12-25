@@ -3,15 +3,15 @@ default: build
 
 # Build the project.
 build platform="native":
-    @zig build -Dplatform={{platform}}
+    @zig build -Dplatform={{ platform }} -Disa=rv32i
 
 # Generate assembly dump
 dump platform="nemu":
-    @zig build dump -Dplatform={{platform}}
+    @zig build dump -Dplatform={{ platform }} -Disa=rv32i
 
 # Run the native application
 run:
-    @zig build run -Dplatform=native
+    @zig build run -Dplatform=native -Disa=rv32i
 
 clean:
     @rm -rf zig-out .zig-cache

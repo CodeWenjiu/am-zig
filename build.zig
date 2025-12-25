@@ -1,12 +1,14 @@
 const std = @import("std");
 
-const Platform = enum {
-    native,
-    nemu,
-};
+const lib = @import("platform/lib.zig");
+const Platform = lib.Platform;
+const Isa = lib.Isa;
 
 pub fn build(b: *std.Build) void {
-    const platform = b.option(Platform, "platform", "Select the platform") orelse .native;
+    const platform = optionOrExit(b, Platform, "platform", "Select the platform");
+    const isa = optionOrExit(b, Isa, "isa", "Select the ISA");
+
+    _ = isa;
 
     const optimize = .ReleaseFast;
 
@@ -21,36 +23,36 @@ pub fn build(b: *std.Build) void {
 
     const code_model: std.builtin.CodeModel = if (platform == .nemu) .medium else .default;
 
+    const lib_mod = b.createModule(.{
+        .root_source_file = b.path("platform/lib.zig"),
+    });
+
     const app_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
         .code_model = code_model,
     });
-
-    const entry_src = switch (platform) {
-        .native => b.path("platform/native/runtime.zig"),
-        .nemu => b.path("platform/nemu/runtime.zig"),
-    };
+    app_mod.addImport("platform_lib", lib_mod);
 
     const entry_mod = b.createModule(.{
-        .root_source_file = entry_src,
+        .root_source_file = b.path(b.fmt("platform/{s}/runtime.zig", .{@tagName(platform)})),
         .target = target,
         .optimize = optimize,
         .code_model = code_model,
     });
 
     entry_mod.addImport("app", app_mod);
+    entry_mod.addImport("platform_lib", lib_mod);
 
-    const exe_name = if (platform == .nemu) "kernel" else "am-zig";
     const exe = b.addExecutable(.{
-        .name = exe_name,
+        .name = "kernel",
         .root_module = entry_mod,
     });
 
     switch (platform) {
         .nemu => {
-            exe.setLinkerScript(b.path("platform/nemu/rv32i/linker.x"));
+            exe.setLinkerScript(b.path("platform/nemu/riscv/linker.x"));
             exe.entry = .{ .symbol_name = "_start" };
 
             const objdump = b.addSystemCommand(&.{ "objdump", "-d" });
@@ -76,4 +78,18 @@ pub fn build(b: *std.Build) void {
     }
 
     b.installArtifact(exe);
+}
+
+fn optionOrExit(b: *std.Build, comptime T: type, name: []const u8, desc: []const u8) T {
+    return b.option(T, name, desc) orelse {
+        std.debug.print("Missing required argument: -D{s}=<{s}>\n", .{ name, name });
+        std.debug.print("Available options: ", .{});
+        const fields = @typeInfo(T).@"enum".fields;
+        inline for (fields, 0..) |field, i| {
+            std.debug.print("[{s}]", .{field.name});
+            if (i < fields.len - 1) std.debug.print(" | ", .{});
+        }
+        std.debug.print("\n", .{});
+        std.process.exit(1);
+    };
 }

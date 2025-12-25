@@ -4,7 +4,7 @@ const uart = @import("uart.zig");
 
 // ISA abstraction layer
 // In a real scenario, this could be selected via build options
-const isa = @import("rv32i/start.zig");
+const isa = @import("riscv/start.zig");
 
 // Ensure ISA symbols (like _start) are compiled and exported
 comptime {

@@ -9,22 +9,9 @@ pub fn build(b: *std.Build) void {
 
     const isa: ?Isa = b.option(Isa, "isa", "Select the ISA (required for non-native platforms; forbidden for native)");
 
-    if (platform == .native) {
-        forbidOption(Isa, "isa", isa, "native ISA is determined by the host");
-    } else {
-        _ = requireOptionOrExit(Isa, "isa", isa);
-    }
-
     const optimize = .ReleaseFast;
 
-    const target = switch (platform) {
-        .native => b.standardTargetOptions(.{}),
-        .nemu => b.resolveTargetQuery(.{
-            .cpu_arch = .riscv32,
-            .os_tag = .freestanding,
-            .abi = .none,
-        }),
-    };
+    const target = platform.resolvedTarget(b, isa);
 
     const lib_mod = b.createModule(.{
         .root_source_file = b.path("platform/lib.zig"),
@@ -75,6 +62,14 @@ pub fn build(b: *std.Build) void {
             }
             const run_step = b.step("run", "Run the app");
             run_step.dependOn(&run_cmd.step);
+        },
+        .qemu => {
+            // Placeholder: add QEMU-specific linker script / run steps here.
+            // For now, just install the artifact so `zig build` succeeds.
+        },
+        .spike => {
+            // Placeholder: add Spike-specific linker script / run steps here.
+            // For now, just install the artifact so `zig build` succeeds.
         },
     }
 

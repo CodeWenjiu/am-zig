@@ -29,8 +29,8 @@ pub fn build(b: *std.Build) void {
     });
 
     const entry_src = switch (platform) {
-        .native => b.path("platform/native/start.zig"),
-        .nemu => b.path("platform/nemu/rv32i/start.zig"),
+        .native => b.path("platform/native/runtime.zig"),
+        .nemu => b.path("platform/nemu/runtime.zig"),
     };
 
     const entry_mod = b.createModule(.{
@@ -53,7 +53,6 @@ pub fn build(b: *std.Build) void {
             exe.setLinkerScript(b.path("platform/nemu/rv32i/linker.x"));
             exe.entry = .{ .symbol_name = "_start" };
 
-            // 添加 dump 步骤 (仅在 NEMU 平台下有效)
             const dump_cmd = b.addSystemCommand(&.{ "sh", "-c" });
             dump_cmd.addArg("objdump -d $1 > $2");
             dump_cmd.addArg("--");
@@ -64,7 +63,6 @@ pub fn build(b: *std.Build) void {
             dump_step.dependOn(&dump_cmd.step);
         },
         .native => {
-            // Native 平台添加 run 步骤
             const run_cmd = b.addRunArtifact(exe);
             run_cmd.step.dependOn(b.getInstallStep());
             if (b.args) |args| {

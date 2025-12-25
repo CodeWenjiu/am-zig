@@ -30,6 +30,9 @@
             # scripts dependencies
             nushell
             just
+
+            # binutils
+            llvmPackages.bintools-unwrapped
           ];
         };
       in

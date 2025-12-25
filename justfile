@@ -1,5 +1,8 @@
 build:
     @zig build
 
-run:
-    @zig build run
+dump: build
+    @zig build dump
+
+clean:
+    @rm -rf zig-out

@@ -53,14 +53,16 @@ pub fn build(b: *std.Build) void {
             exe.setLinkerScript(b.path("platform/nemu/rv32i/linker.x"));
             exe.entry = .{ .symbol_name = "_start" };
 
-            const dump_cmd = b.addSystemCommand(&.{ "sh", "-c" });
-            dump_cmd.addArg("objdump -d $1 > $2");
-            dump_cmd.addArg("--");
-            dump_cmd.addArtifactArg(exe);
-            dump_cmd.addArg(b.getInstallPath(.bin, "kernel.asm"));
+            const objdump = b.addSystemCommand(&.{ "objdump", "-d" });
+            objdump.addFileArg(exe.getEmittedBin());
+
+            const dump_output = objdump.captureStdOut();
+
+            const install_dump = b.addInstallFile(dump_output, "bin/kernel.asm");
 
             const dump_step = b.step("dump", "Generate disassembly and save to kernel.asm");
-            dump_step.dependOn(&dump_cmd.step);
+            dump_step.dependOn(b.getInstallStep());
+            dump_step.dependOn(&install_dump.step);
         },
         .native => {
             const run_cmd = b.addRunArtifact(exe);

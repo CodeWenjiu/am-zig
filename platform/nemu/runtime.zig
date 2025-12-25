@@ -11,7 +11,7 @@ comptime {
     _ = isa;
 }
 
-pub const std_options = .{
+pub const std_options: std.Options = .{
     .logFn = uartLogFn,
     .log_level = .info,
 };

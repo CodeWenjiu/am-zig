@@ -6,6 +6,11 @@ const uart = @import("uart.zig");
 // In a real scenario, this could be selected via build options
 const isa = @import("riscv/start.zig");
 
+// Ensure ISA symbols (like _start) are compiled and exported
+comptime {
+    _ = isa;
+}
+
 pub const std_options: std.Options = .{
     .logFn = uartLogFn,
     .log_level = .info,

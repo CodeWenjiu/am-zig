@@ -79,6 +79,16 @@ pub const Platform = enum {
     }
 
     pub fn addPlatformSteps(self: Platform, b: *std.Build, exe: *std.Build.Step.Compile) void {
+        const objdump = b.addSystemCommand(&.{ "objdump", "-d" });
+        objdump.addFileArg(exe.getEmittedBin());
+
+        const dump_output = objdump.captureStdOut();
+        const install_dump = b.addInstallFile(dump_output, b.pathJoin(&.{ @tagName(self), "kernel.asm" }));
+
+        const dump_step = b.step("dump", "Generate disassembly and save to kernel.asm");
+        dump_step.dependOn(b.getInstallStep());
+        dump_step.dependOn(&install_dump.step);
+
         const Ctx = struct { b: *std.Build, exe: *std.Build.Step.Compile };
         const ctx: Ctx = .{ .b = b, .exe = exe };
 
@@ -104,7 +114,7 @@ pub const Isa = enum {
     }
 };
 
-pub const build = @import("build_impl.zig");
+const build = @import("build_impl.zig");
 pub const missingOptionExit = build.missingOptionExit;
 
 const native_build = @import("native/build_impl.zig");

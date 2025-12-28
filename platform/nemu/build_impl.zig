@@ -30,14 +30,4 @@ pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
     exe.entry = .{ .symbol_name = "_start" };
 }
 
-pub fn addPlatformSteps(b: *std.Build, exe: *std.Build.Step.Compile) void {
-    const objdump = b.addSystemCommand(&.{ "objdump", "-d" });
-    objdump.addFileArg(exe.getEmittedBin());
-
-    const dump_output = objdump.captureStdOut();
-    const install_dump = b.addInstallFile(dump_output, "bin/kernel.asm");
-
-    const dump_step = b.step("dump", "Generate disassembly and save to kernel.asm");
-    dump_step.dependOn(b.getInstallStep());
-    dump_step.dependOn(&install_dump.step);
-}
+pub fn addPlatformSteps(_: *std.Build, _: *std.Build.Step.Compile) void {}

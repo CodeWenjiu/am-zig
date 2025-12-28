@@ -27,5 +27,8 @@ pub fn build(b: *std.Build) void {
     platform.configureExecutable(b, exe);
     platform.addPlatformSteps(b, exe);
 
-    b.installArtifact(exe);
+    const install_exe = b.addInstallArtifact(exe, .{
+        .dest_dir = .{ .override = .{ .custom = @tagName(platform) } },
+    });
+    b.getInstallStep().dependOn(&install_exe.step);
 }

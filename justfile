@@ -1,17 +1,20 @@
-# Default to building native
-default: build
+_default:
+    @just --list
 
-# Build the project.
-build platform="native":
-    @zig build -Dplatform={{ platform }} -Disa=rv32i
+_zig platform args:
+    @ZIG_LOCAL_CACHE_DIR=.zig-cache/{{ platform }} zig build {{ args }} -Dplatform={{ platform }}
 
-# Generate assembly dump
-dump platform="nemu":
-    @zig build dump -Dplatform={{ platform }} -Disa=rv32i
+build platform isa:
+    @just _zig {{ platform }} "build -Disa={{ isa }}"
 
-# Run the native application
+dump platform isa:
+    @just _zig {{ platform }} "dump -Disa={{ isa }}"
+
 run:
-    @zig build run -Dplatform=native
+    @just _zig native "run"
 
 clean:
+    @rm -rf zig-out
+
+clean-all:
     @rm -rf zig-out .zig-cache

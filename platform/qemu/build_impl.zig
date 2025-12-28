@@ -25,6 +25,8 @@ pub fn entryModule(
     return entry_mod;
 }
 
-pub fn configureExecutable(_: *std.Build, _: *std.Build.Step.Compile) void {}
-
+pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
+    exe.setLinkerScript(b.path("platform/qemu/riscv/linker.x"));
+    exe.entry = .{ .symbol_name = "_start" };
+}
 pub fn addPlatformSteps(_: *std.Build, _: *std.Build.Step.Compile) void {}

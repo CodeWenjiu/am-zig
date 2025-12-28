@@ -1,0 +1,43 @@
+const std = @import("std");
+
+pub fn targetQuery(comptime Isa: type, isa: Isa) std.Target.Query {
+    return switch (isa) {
+        .rv32i => .{
+            .cpu_arch = .riscv32,
+            .os_tag = .freestanding,
+            .abi = .none,
+        },
+    };
+}
+
+pub fn entryModule(
+    b: *std.Build,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    app_mod: *std.Build.Module,
+) *std.Build.Module {
+    const entry_mod = b.createModule(.{
+        .root_source_file = b.path("platform/nemu/runtime.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    entry_mod.addImport("app", app_mod);
+    return entry_mod;
+}
+
+pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
+    exe.setLinkerScript(b.path("platform/nemu/riscv/linker.x"));
+    exe.entry = .{ .symbol_name = "_start" };
+}
+
+pub fn addPlatformSteps(b: *std.Build, exe: *std.Build.Step.Compile) void {
+    const objdump = b.addSystemCommand(&.{ "objdump", "-d" });
+    objdump.addFileArg(exe.getEmittedBin());
+
+    const dump_output = objdump.captureStdOut();
+    const install_dump = b.addInstallFile(dump_output, "bin/kernel.asm");
+
+    const dump_step = b.step("dump", "Generate disassembly and save to kernel.asm");
+    dump_step.dependOn(b.getInstallStep());
+    dump_step.dependOn(&install_dump.step);
+}

@@ -8,12 +8,7 @@ pub const Platform = enum {
 
     pub fn resolvedTarget(self: Platform, b: *std.Build, isa: ?Isa) std.Build.ResolvedTarget {
         return switch (self) {
-            .native => {
-                if (isa) |_| {
-                    std.debug.print("warning: -Disa with -Dplatform=native is ignored (native ISA is determined by the host)\n", .{});
-                }
-                return b.standardTargetOptions(.{});
-            },
+            .native => native_build.resolvedTarget(b, isa),
             else => {
                 const chosen_isa = isa orelse missingOptionExit(Isa, "isa");
                 return b.resolveTargetQuery(self.targetQuery(chosen_isa));
@@ -23,10 +18,10 @@ pub const Platform = enum {
 
     pub fn targetQuery(self: Platform, isa: Isa) std.Target.Query {
         return switch (self) {
-            .native => native_target.targetQuery(isa),
-            .nemu => nemu_target.targetQuery(isa),
-            .qemu => qemu_target.targetQuery(isa),
-            .spike => spike_target.targetQuery(isa),
+            .native => native_build.targetQuery(isa),
+            .nemu => nemu_build.targetQuery(Isa, isa),
+            .qemu => qemu_build.targetQuery(Isa, isa),
+            .spike => spike_build.targetQuery(Isa, isa),
         };
     }
 
@@ -37,50 +32,31 @@ pub const Platform = enum {
         optimize: std.builtin.OptimizeMode,
         app_mod: *std.Build.Module,
     ) *std.Build.Module {
-        const entry_mod = b.createModule(.{
-            .root_source_file = b.path(b.fmt("platform/{s}/runtime.zig", .{@tagName(self)})),
-            .target = target,
-            .optimize = optimize,
-        });
-        entry_mod.addImport("app", app_mod);
+        const entry_mod = switch (self) {
+            .native => native_build.entryModule(b, target, optimize, app_mod),
+            .nemu => nemu_build.entryModule(b, target, optimize, app_mod),
+            .qemu => qemu_build.entryModule(b, target, optimize, app_mod),
+            .spike => spike_build.entryModule(b, target, optimize, app_mod),
+        };
         return entry_mod;
     }
 
     pub fn configureExecutable(self: Platform, b: *std.Build, exe: *std.Build.Step.Compile) void {
-        switch (self) {
-            .nemu => {
-                exe.setLinkerScript(b.path("platform/nemu/riscv/linker.x"));
-                exe.entry = .{ .symbol_name = "_start" };
-            },
-            .native => {},
-            .qemu => {},
-            .spike => {},
-        }
+        return switch (self) {
+            .native => native_build.configureExecutable(b, exe),
+            .nemu => nemu_build.configureExecutable(b, exe),
+            .qemu => qemu_build.configureExecutable(b, exe),
+            .spike => spike_build.configureExecutable(b, exe),
+        };
     }
 
     pub fn addPlatformSteps(self: Platform, b: *std.Build, exe: *std.Build.Step.Compile) void {
-        switch (self) {
-            .nemu => {
-                const objdump = b.addSystemCommand(&.{ "objdump", "-d" });
-                objdump.addFileArg(exe.getEmittedBin());
-                const dump_output = objdump.captureStdOut();
-                const install_dump = b.addInstallFile(dump_output, "bin/kernel.asm");
-                const dump_step = b.step("dump", "Generate disassembly and save to kernel.asm");
-                dump_step.dependOn(b.getInstallStep());
-                dump_step.dependOn(&install_dump.step);
-            },
-            .native => {
-                const run_cmd = b.addRunArtifact(exe);
-                run_cmd.step.dependOn(b.getInstallStep());
-                if (b.args) |args| {
-                    run_cmd.addArgs(args);
-                }
-                const run_step = b.step("run", "Run the app");
-                run_step.dependOn(&run_cmd.step);
-            },
-            .qemu => {},
-            .spike => {},
-        }
+        return switch (self) {
+            .native => native_build.addPlatformSteps(b, exe),
+            .nemu => nemu_build.addPlatformSteps(b, exe),
+            .qemu => qemu_build.addPlatformSteps(b, exe),
+            .spike => spike_build.addPlatformSteps(b, exe),
+        };
     }
 };
 
@@ -98,19 +74,10 @@ pub const Isa = enum {
     }
 };
 
-pub fn missingOptionExit(comptime T: type, name: []const u8) noreturn {
-    std.debug.print("Missing required argument: -D{s}=<{s}>\n", .{ name, name });
-    std.debug.print("Available options: ", .{});
-    const fields = @typeInfo(T).@"enum".fields;
-    inline for (fields, 0..) |field, i| {
-        std.debug.print("[{s}]", .{field.name});
-        if (i < fields.len - 1) std.debug.print(" | ", .{});
-    }
-    std.debug.print("\n", .{});
-    std.process.exit(1);
-}
+pub const build = @import("build_impl.zig");
+pub const missingOptionExit = build.missingOptionExit;
 
-const native_target = @import("native/target.zig");
-const nemu_target = @import("nemu/target.zig");
-const qemu_target = @import("qemu/target.zig");
-const spike_target = @import("spike/target.zig");
+const native_build = @import("native/build_impl.zig");
+const nemu_build = @import("nemu/build_impl.zig");
+const qemu_build = @import("qemu/build_impl.zig");
+const spike_build = @import("spike/build_impl.zig");

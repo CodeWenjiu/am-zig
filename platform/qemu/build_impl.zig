@@ -1,6 +1,8 @@
 const std = @import("std");
 
-pub fn targetQuery(comptime Isa: type, isa: Isa) std.Target.Query {
+const Isa = @import("../build_impl.zig").Isa;
+
+pub fn targetQuery(isa: Isa) std.Target.Query {
     return switch (isa) {
         .rv32i => .{
             .cpu_arch = .riscv32,
@@ -29,4 +31,5 @@ pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
     exe.setLinkerScript(b.path("platform/qemu/riscv/linker.x"));
     exe.entry = .{ .symbol_name = "_start" };
 }
+
 pub fn addPlatformSteps(_: *std.Build, _: *std.Build.Step.Compile) void {}

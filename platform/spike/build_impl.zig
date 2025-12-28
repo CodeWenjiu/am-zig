@@ -1,6 +1,8 @@
 const std = @import("std");
 
-pub fn targetQuery(comptime Isa: type, isa: Isa) std.Target.Query {
+const Isa = @import("../build_impl.zig").Isa;
+
+pub fn targetQuery(isa: Isa) std.Target.Query {
     return switch (isa) {
         .rv32i => .{
             .cpu_arch = .riscv32,

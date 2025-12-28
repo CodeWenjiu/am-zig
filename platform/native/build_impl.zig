@@ -1,7 +1,6 @@
 const std = @import("std");
 
-const lib = @import("../lib.zig");
-const Isa = lib.Isa;
+const Isa = @import("../build_impl.zig").Isa;
 
 pub fn resolvedTarget(b: *std.Build, isa: ?Isa) std.Build.ResolvedTarget {
     if (isa) |_| {
@@ -10,8 +9,8 @@ pub fn resolvedTarget(b: *std.Build, isa: ?Isa) std.Build.ResolvedTarget {
     return b.standardTargetOptions(.{});
 }
 
-pub fn targetQuery(comptime IsaT: type, _: IsaT) std.Target.Query {
-    _ = Isa;
+pub fn targetQuery(isa: Isa) std.Target.Query {
+    _ = isa;
     return .{};
 }
 

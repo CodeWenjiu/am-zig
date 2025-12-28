@@ -1,6 +1,6 @@
 const std = @import("std");
 
-const platform_lib = @import("platform/lib.zig");
+const platform_lib = @import("platform/build_impl.zig");
 const Platform = platform_lib.Platform;
 const Isa = platform_lib.Isa;
 
@@ -27,8 +27,5 @@ pub fn build(b: *std.Build) void {
     platform.configureExecutable(b, exe);
     platform.addPlatformSteps(b, exe);
 
-    const install_exe = b.addInstallArtifact(exe, .{
-        .dest_dir = .{ .override = .{ .custom = @tagName(platform) } },
-    });
-    b.getInstallStep().dependOn(&install_exe.step);
+    b.installArtifact(exe);
 }

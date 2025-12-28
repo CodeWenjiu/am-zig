@@ -10,7 +10,8 @@ pub fn resolvedTarget(b: *std.Build, isa: ?Isa) std.Build.ResolvedTarget {
     return b.standardTargetOptions(.{});
 }
 
-pub fn targetQuery(_: Isa) std.Target.Query {
+pub fn targetQuery(comptime IsaT: type, _: IsaT) std.Target.Query {
+    _ = Isa;
     return .{};
 }
 

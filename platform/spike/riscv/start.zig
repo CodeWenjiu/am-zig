@@ -9,10 +9,10 @@ const QEMU_TEST_DEVICE: usize = 0x100000;
 const QEMU_EXIT_SUCCESS: u32 = 0x5555;
 const QEMU_EXIT_FAILURE: u32 = 0x3333;
 
+extern var tohost: u64;
+
 pub fn quit() noreturn {
-    const exit_value: u32 = QEMU_EXIT_SUCCESS;
-    const quit_reg = @as(*volatile u32, @ptrFromInt(QEMU_TEST_DEVICE));
-    quit_reg.* = exit_value;
+    @as(*volatile u64, @ptrCast(&tohost)).* = 1;
     while (true) {
         asm volatile ("wfi");
     }

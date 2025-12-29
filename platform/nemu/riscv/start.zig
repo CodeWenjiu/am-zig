@@ -7,5 +7,7 @@ export fn _start() linksection(".text._start") callconv(.naked) noreturn {
 
 pub fn quit() noreturn {
     asm volatile ("ebreak");
-    while (true) {}
+    while (true) {
+        asm volatile ("wfi");
+    }
 }

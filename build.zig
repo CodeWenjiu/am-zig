@@ -7,6 +7,7 @@ const Isa = platform_lib.Isa;
 pub fn build(b: *std.Build) void {
     const platform = b.option(Platform, "platform", "Select the platform") orelse platform_lib.missingOptionExit(Platform, "platform");
     const isa: ?Isa = b.option(Isa, "isa", "Select the ISA (required for non-native platforms; forbidden for native)");
+
     const target = platform.resolvedTarget(b, isa);
 
     const optimize = .ReleaseFast;
@@ -25,7 +26,10 @@ pub fn build(b: *std.Build) void {
     });
 
     platform.configureExecutable(b, exe);
-    platform.addPlatformSteps(b, exe);
+    platform.addPlatformSteps(b, isa, exe);
 
-    b.installArtifact(exe);
+    const install_exe = b.addInstallArtifact(exe, .{
+        .dest_dir = .{ .override = .{ .custom = @tagName(platform) } },
+    });
+    b.getInstallStep().dependOn(&install_exe.step);
 }

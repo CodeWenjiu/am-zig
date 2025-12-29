@@ -4,7 +4,11 @@ const Isa = @import("../build_impl.zig").Isa;
 
 pub fn targetQuery(isa: Isa) std.Target.Query {
     return switch (isa) {
-        .rv32i => .{
+        .rv32i,
+        .rv32im,
+        .rv32imac,
+        .rv32im_zve32x,
+        => .{
             .cpu_arch = .riscv32,
             .os_tag = .freestanding,
             .abi = .none,
@@ -32,4 +36,36 @@ pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
     exe.entry = .{ .symbol_name = "_start" };
 }
 
-pub fn addPlatformSteps(_: *std.Build, _: *std.Build.Step.Compile) void {}
+fn qemuCpuForIsa(isa: Isa) []const u8 {
+    return switch (isa) {
+        .rv32i => "rv32",
+        .rv32im => "rv32",
+        .rv32imac => "rv32",
+        .rv32im_zve32x => "rv32,v=true,vlen=128",
+    };
+}
+
+pub fn addPlatformSteps(b: *std.Build, isa: ?Isa, exe: *std.Build.Step.Compile) void {
+    const chosen_isa = isa orelse @import("../build_impl.zig").missingOptionExit(Isa, "isa");
+
+    const run_qemu = b.addSystemCommand(&.{
+        "qemu-system-riscv32",
+        "-machine",
+        "virt",
+        "-cpu",
+        qemuCpuForIsa(chosen_isa),
+        "-m",
+        "128M",
+        "-nographic",
+        "-serial",
+        "mon:stdio",
+        "-bios",
+        "none",
+        "-kernel",
+    });
+    run_qemu.addFileArg(exe.getEmittedBin());
+    run_qemu.step.dependOn(b.getInstallStep());
+
+    const run_step = b.step("run", "Run the app");
+    run_step.dependOn(&run_qemu.step);
+}

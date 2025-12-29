@@ -4,7 +4,11 @@ const Isa = @import("../build_impl.zig").Isa;
 
 pub fn targetQuery(isa: Isa) std.Target.Query {
     return switch (isa) {
-        .rv32i => .{
+        .rv32i,
+        .rv32im,
+        .rv32imac,
+        .rv32im_zve32x,
+        => .{
             .cpu_arch = .riscv32,
             .os_tag = .freestanding,
             .abi = .none,
@@ -32,4 +36,11 @@ pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
     exe.entry = .{ .symbol_name = "_start" };
 }
 
-pub fn addPlatformSteps(_: *std.Build, _: *std.Build.Step.Compile) void {}
+pub fn addPlatformSteps(b: *std.Build, isa: ?Isa, exe: *std.Build.Step.Compile) void {
+    _ = exe;
+    _ = isa;
+
+    const run_step = b.step("run", "Run the app");
+    const warn_step = b.addSystemCommand(&.{ "sh", "-c", "echo warning: run for nemu is not implemented yet" });
+    run_step.dependOn(&warn_step.step);
+}

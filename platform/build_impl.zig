@@ -78,23 +78,26 @@ pub const Platform = enum {
         }.call);
     }
 
-    pub fn addPlatformSteps(self: Platform, b: *std.Build, exe: *std.Build.Step.Compile) void {
+    pub fn addPlatformSteps(self: Platform, b: *std.Build, isa: ?Isa, exe: *std.Build.Step.Compile) void {
         const objdump = b.addSystemCommand(&.{ "objdump", "-d" });
         objdump.addFileArg(exe.getEmittedBin());
 
         const dump_output = objdump.captureStdOut();
         const install_dump = b.addInstallFile(dump_output, b.pathJoin(&.{ @tagName(self), "kernel.asm" }));
 
-        const dump_step = b.step("dump", "Generate disassembly and save to kernel.asm");
+        const dump_step = b.step(b.fmt("dump-{s}", .{@tagName(self)}), "Generate disassembly and save to kernel.asm");
         dump_step.dependOn(b.getInstallStep());
         dump_step.dependOn(&install_dump.step);
 
-        const Ctx = struct { b: *std.Build, exe: *std.Build.Step.Compile };
-        const ctx: Ctx = .{ .b = b, .exe = exe };
+        const dump = b.step("dump", "Generate disassembly and save to kernel.asm");
+        dump.dependOn(dump_step);
+
+        const Ctx = struct { b: *std.Build, isa: ?Isa, exe: *std.Build.Step.Compile };
+        const ctx: Ctx = .{ .b = b, .isa = isa, .exe = exe };
 
         return self.withImpl(void, ctx, struct {
             fn call(comptime M: type, c: Ctx) void {
-                return M.addPlatformSteps(c.b, c.exe);
+                return M.addPlatformSteps(c.b, c.isa, c.exe);
             }
         }.call);
     }
@@ -106,10 +109,17 @@ pub const IsaFamily = enum {
 
 pub const Isa = enum {
     rv32i,
+    rv32im,
+    rv32imac,
+    rv32im_zve32x,
 
     pub fn getFamily(self: Isa) IsaFamily {
         return switch (self) {
-            .rv32i => .riscv,
+            .rv32i,
+            .rv32im,
+            .rv32imac,
+            .rv32im_zve32x,
+            => .riscv,
         };
     }
 };

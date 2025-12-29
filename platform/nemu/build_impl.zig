@@ -1,19 +1,46 @@
 const std = @import("std");
 
-const Isa = @import("../build_impl.zig").Isa;
+const root = @import("../build_impl.zig");
+const Isa = root.Isa;
+
+fn riscv32QueryBase() std.Target.Query {
+    return .{
+        .cpu_arch = .riscv32,
+        .os_tag = .freestanding,
+        .abi = .none,
+        // Zig 0.15 baseline_rv32 includes A+C+D+I+M by default.
+        // Start from it, then explicitly add/sub features to match the selected ISA.
+        .cpu_model = .{ .explicit = &std.Target.riscv.cpu.baseline_rv32 },
+    };
+}
 
 pub fn targetQuery(isa: Isa) std.Target.Query {
-    return switch (isa) {
-        .rv32i,
-        .rv32im,
-        .rv32imac,
-        .rv32im_zve32x,
-        => .{
-            .cpu_arch = .riscv32,
-            .os_tag = .freestanding,
-            .abi = .none,
+    var q = riscv32QueryBase();
+
+    const F = std.Target.riscv.Feature;
+
+    q.cpu_features_sub.addFeature(@intFromEnum(F.c));
+    q.cpu_features_sub.addFeature(@intFromEnum(F.a));
+    q.cpu_features_sub.addFeature(@intFromEnum(F.d));
+    q.cpu_features_sub.addFeature(@intFromEnum(F.m));
+
+    switch (isa) {
+        .rv32i => {},
+        .rv32im => {
+            q.cpu_features_add.addFeature(@intFromEnum(F.m));
         },
-    };
+        .rv32imac => {
+            q.cpu_features_add.addFeature(@intFromEnum(F.m));
+            q.cpu_features_add.addFeature(@intFromEnum(F.a));
+            q.cpu_features_add.addFeature(@intFromEnum(F.c));
+        },
+        .rv32im_zve32x => {
+            q.cpu_features_add.addFeature(@intFromEnum(F.m));
+            q.cpu_features_add.addFeature(@intFromEnum(F.zve32x));
+        },
+    }
+
+    return q;
 }
 
 pub fn entryModule(

@@ -2,18 +2,44 @@ const std = @import("std");
 
 const Isa = @import("../build_impl.zig").Isa;
 
-pub fn targetQuery(isa: Isa) std.Target.Query {
-    return switch (isa) {
-        .rv32i,
-        .rv32im,
-        .rv32imac,
-        .rv32im_zve32x,
-        => .{
-            .cpu_arch = .riscv32,
-            .os_tag = .freestanding,
-            .abi = .none,
-        },
+fn riscv32QueryBase() std.Target.Query {
+    return .{
+        .cpu_arch = .riscv32,
+        .os_tag = .freestanding,
+        .abi = .none,
+        .cpu_model = .{ .explicit = &std.Target.riscv.cpu.baseline_rv32 },
     };
+}
+
+pub fn targetQuery(isa: Isa) std.Target.Query {
+    var q = riscv32QueryBase();
+
+    const F = std.Target.riscv.Feature;
+
+    q.cpu_features_sub.addFeature(@intFromEnum(F.c));
+    q.cpu_features_sub.addFeature(@intFromEnum(F.a));
+    q.cpu_features_sub.addFeature(@intFromEnum(F.d));
+    q.cpu_features_sub.addFeature(@intFromEnum(F.m));
+
+    // i is part of all ISA variants we model here; baseline already has it.
+    // Now selectively re-enable what the ISA explicitly includes.
+    switch (isa) {
+        .rv32i => {},
+        .rv32im => {
+            q.cpu_features_add.addFeature(@intFromEnum(F.m));
+        },
+        .rv32imac => {
+            q.cpu_features_add.addFeature(@intFromEnum(F.m));
+            q.cpu_features_add.addFeature(@intFromEnum(F.a));
+            q.cpu_features_add.addFeature(@intFromEnum(F.c));
+        },
+        .rv32im_zve32x => {
+            q.cpu_features_add.addFeature(@intFromEnum(F.m));
+            q.cpu_features_add.addFeature(@intFromEnum(F.zve32x));
+        },
+    }
+
+    return q;
 }
 
 pub fn entryModule(

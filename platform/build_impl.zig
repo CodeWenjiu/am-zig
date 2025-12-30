@@ -103,6 +103,29 @@ pub const Platform = enum {
     }
 };
 
+pub fn attachCommonArgv(
+    b: *std.Build,
+    entry_mod: *std.Build.Module,
+    target: std.Build.ResolvedTarget,
+    optimize: std.builtin.OptimizeMode,
+    arg: []const u8,
+    exe_name: []const u8,
+) void {
+    // Expose build options (arg string and executable name) to runtimes.
+    const opts = b.addOptions();
+    opts.addOption([]const u8, "arg", arg);
+    opts.addOption([]const u8, "exe_name", exe_name);
+    entry_mod.addOptions("build_options", opts);
+
+    // Expose shared argv utilities as a package named "argv".
+    const argv_pkg = b.createModule(.{
+        .root_source_file = b.path("platform/argv.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    entry_mod.addImport("argv", argv_pkg);
+}
+
 pub const IsaFamily = enum {
     riscv,
 };

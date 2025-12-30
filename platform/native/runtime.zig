@@ -1,6 +1,7 @@
 const std = @import("std");
 const app = @import("app");
 const build_options = @import("build_options");
+const argv_util = @import("argv");
 
 /// Native entrypoint.
 ///
@@ -13,8 +14,8 @@ const build_options = @import("build_options");
 /// Notes:
 /// - This parser is intentionally simple: ASCII whitespace splitting only.
 ///   No quoting/escaping.
-/// - `argv[0]` is synthesized as "app" to match the convention used by the
-///   freestanding runtimes in this repo.
+/// - argv[0] comes from build_options.exe_name (defaults to the executable name
+///   set in build.zig).
 /// - If `app.main` has signature `pub fn main(argv: []const []const u8) ...`,
 ///   we pass the parsed argv slice. Otherwise, we call `app.main()` (legacy).
 pub fn main() !void {
@@ -24,8 +25,7 @@ pub fn main() !void {
     if (fn_info.params.len == 1) {
         var argv_storage: [64][]const u8 = undefined;
 
-        var injected = InjectedArgs.init(build_options.arg);
-        const argv = injected.fillArray(&argv_storage);
+        const argv = argv_util.parseInjectedArgv(build_options.arg, &argv_storage, build_options.exe_name);
 
         if (ret_ty == void) {
             app.main(argv);
@@ -40,60 +40,3 @@ pub fn main() !void {
         }
     }
 }
-
-/// Minimal, allocation-free argv builder from a single injected string.
-/// Splits on ASCII whitespace. Does not support quotes/escapes.
-const InjectedArgs = struct {
-    rest: []const u8,
-    emitted_argv0: bool = false,
-
-    pub fn init(s: []const u8) InjectedArgs {
-        return .{ .rest = s, .emitted_argv0 = false };
-    }
-
-    fn skipSpace(self: *InjectedArgs) void {
-        while (self.rest.len != 0 and std.ascii.isWhitespace(self.rest[0])) {
-            self.rest = self.rest[1..];
-        }
-    }
-
-    fn nextToken(self: *InjectedArgs) ?[]const u8 {
-        self.skipSpace();
-        if (self.rest.len == 0) return null;
-
-        var end: usize = 0;
-        while (end < self.rest.len and !std.ascii.isWhitespace(self.rest[end])) {
-            end += 1;
-        }
-
-        const tok = self.rest[0..end];
-        self.rest = self.rest[end..];
-        return tok;
-    }
-
-    /// Returns next argv entry (argv[0] first), then tokens from the injected string.
-    pub fn next(self: *InjectedArgs) ?[]const u8 {
-        if (!self.emitted_argv0) {
-            self.emitted_argv0 = true;
-            return "app";
-        }
-        return self.nextToken();
-    }
-
-    /// Fill `out` with argv slices and return the used prefix.
-    /// Always includes synthesized argv[0] = "app".
-    pub fn fill(self: *InjectedArgs, out: []([]const u8)) []const []const u8 {
-        var n: usize = 0;
-        while (n < out.len) : (n += 1) {
-            const a = self.next() orelse break;
-            out[n] = a;
-        }
-        return out[0..n];
-    }
-
-    /// Convenience overload for fixed-size arrays.
-    pub fn fillArray(self: *InjectedArgs, out: anytype) []const []const u8 {
-        // `out` is expected to be `*[_][]const u8` or `*[_][]const u8`.
-        return self.fill(out[0..]);
-    }
-};

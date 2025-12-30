@@ -21,16 +21,16 @@ pub fn build(b: *std.Build) void {
 
     const entry_mod = platform.entryModule(b, target, optimize, app_mod);
 
-    // Expose build options to the root module so bare-metal runtimes can read -Darg.
-    // Native can still use std.process.args(); bare-metal reads @import("build_options").arg.
-    const opts = b.addOptions();
-    opts.addOption([]const u8, "arg", arg orelse "");
-    entry_mod.addOptions("build_options", opts);
+
+    const exe_name = "kernel";
+
+    platform_lib.attachCommonArgv(b, entry_mod, target, optimize, arg orelse "", exe_name);
 
     const exe = b.addExecutable(.{
-        .name = "kernel",
+        .name = exe_name,
         .root_module = entry_mod,
     });
+
 
     platform.configureExecutable(b, exe);
     platform.addPlatformSteps(b, isa, exe);

@@ -11,26 +11,26 @@ _default:
 _zig platform target *zig_args:
     @zig build {{ target }} -Dplatform={{ platform }} {{ zig_args }}
 
-build platform isa *zig_args:
-    @just _zig {{ platform }} build -Disa={{ isa }} {{ zig_args }}
+build platform isa bin *zig_args:
+    @just _zig {{ platform }} build -Disa={{ isa }} -Dbin={{ bin }} {{ zig_args }}
 
-dump platform isa *zig_args:
-    @just _zig {{ platform }} dump -Disa={{ isa }} {{ zig_args }}
+dump platform isa bin *zig_args:
+    @just _zig {{ platform }} dump -Disa={{ isa }} -Dbin={{ bin }} {{ zig_args }}
 
 # Unified argument passing (simplified):
 # - You always pass app args after `--` and `just` converts them into `-Darg="..."`.
 #
 # Examples:
-#   just run native ignored -- foo bar --name=Zig
-#   just run spike  rv32i   -- foo bar --name=Zig
+#   just run native rv32i argv -- foo bar --name=Zig
+#   just run spike  rv32i argv -- foo bar --name=Zig
 #
 # Notes:
 # - This is a *simple* join. It does not add quoting/escaping. Avoid spaces inside
 #   a single argument (use key=value or --flag=value forms).
 
 # - `isa` is ignored for native by the build script, but kept for a uniform CLI.
-run platform isa *app_args:
-    @zig build run -Dplatform={{ platform }} -Disa={{ isa }} '-Darg={{ app_args }}'
+run platform isa bin *app_args:
+    @zig build run -Dplatform={{ platform }} -Disa={{ isa }} -Dbin={{ bin }} '-Darg={{ app_args }}'
 
 clean:
     @rm -rf zig-out

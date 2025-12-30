@@ -8,9 +8,7 @@ const std = @import("std");
 /// - bare-metal runtime parses `-Darg="..."` into argv slices and forwards it here
 pub fn main(argv: []const []const u8) !void {
     // Match typical argv conventions: argv[0] is program name (or "app" on bare-metal).
-    if (argv.len > 0) {
-        std.log.info("argv[0] = {s}", .{argv[0]});
-    } else {
+    if (argv.len == 0) {
         std.log.info("argv is empty", .{});
     }
 

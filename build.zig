@@ -31,6 +31,11 @@ pub fn build(b: *std.Build) void {
         },
     };
 
+    const isa_name: ?[]const u8 = switch (platform) {
+        .native => null,
+        else => @tagName(isa orelse platform_lib.missingOptionExit(Isa, "isa")),
+    };
+
     const optimize = .ReleaseFast;
 
     const app_mod = b.createModule(.{
@@ -51,7 +56,7 @@ pub fn build(b: *std.Build) void {
     });
 
     platform.configureExecutable(b, exe);
-    platform.addPlatformSteps(b, isa, exe);
+    platform.addPlatformSteps(b, isa_name, exe);
 
     const install_exe = b.addInstallArtifact(exe, .{
         .dest_dir = .{ .override = .{ .custom = @tagName(platform) } },

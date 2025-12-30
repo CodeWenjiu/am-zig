@@ -1,8 +1,5 @@
 const std = @import("std");
 
-const root = @import("../build_impl.zig");
-const Isa = root.Isa;
-
 pub fn entryModule(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
@@ -31,22 +28,22 @@ pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
     exe.entry = .{ .symbol_name = "_start" };
 }
 
-fn spikeIsaForIsa(isa: Isa) []const u8 {
-    if (isa == .rv32i) return "rv32i";
-    if (isa == .rv32im) return "rv32im";
-    if (isa == .rv32im_zve32x) return "rv32im_zve32x_zvl128b";
-    if (isa == .rv32imac) return "rv32imac";
-    unreachable;
+fn spikeIsaForName(isa_name: []const u8) []const u8 {
+    if (std.mem.eql(u8, isa_name, "rv32i")) return "rv32i";
+    if (std.mem.eql(u8, isa_name, "rv32im")) return "rv32im";
+    if (std.mem.eql(u8, isa_name, "rv32im_zve32x")) return "rv32im_zve32x_zvl128b";
+    if (std.mem.eql(u8, isa_name, "rv32imac")) return "rv32imac";
+    std.debug.panic("Unsupported ISA '{s}' for spike", .{isa_name});
 }
 
-pub fn addPlatformSteps(b: *std.Build, isa: ?Isa, exe: *std.Build.Step.Compile) void {
-    const chosen_isa = isa orelse root.missingOptionExit(Isa, "isa");
+pub fn addPlatformSteps(b: *std.Build, isa_name: ?[]const u8, exe: *std.Build.Step.Compile) void {
+    const chosen_isa = isa_name orelse std.debug.panic("Missing required -Disa for platform=spike", .{});
     // const batch = b.option(bool, "batch", "Batch mode (disable interactive debugger)") orelse false;
 
     const run_spike = b.addSystemCommand(&.{
         "spike",
         "--isa",
-        spikeIsaForIsa(chosen_isa),
+        spikeIsaForName(chosen_isa),
         "-m0x80000000:0x08000000",
     });
 

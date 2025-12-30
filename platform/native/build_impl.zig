@@ -1,7 +1,5 @@
 const std = @import("std");
 
-const Isa = @import("../build_impl.zig").Isa;
-
 pub fn entryModule(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
@@ -19,8 +17,8 @@ pub fn entryModule(
 
 pub fn configureExecutable(_: *std.Build, _: *std.Build.Step.Compile) void {}
 
-pub fn addPlatformSteps(b: *std.Build, isa: ?Isa, exe: *std.Build.Step.Compile) void {
-    _ = isa;
+pub fn addPlatformSteps(b: *std.Build, isa_name: ?[]const u8, exe: *std.Build.Step.Compile) void {
+    _ = isa_name;
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());

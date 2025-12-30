@@ -1,8 +1,6 @@
 const std = @import("std");
 
-const root = @import("../build_impl.zig");
-const Isa = root.Isa;
-
+/// Create the entry module for NEMU: wires app runtime and ISA start shim.
 pub fn entryModule(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
@@ -24,14 +22,16 @@ pub fn entryModule(
     return entry_mod;
 }
 
+/// NEMU uses the shared RISC-V linker script and _start symbol.
 pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
     exe.setLinkerScript(b.path("isa/riscv/linker_common.x"));
     exe.entry = .{ .symbol_name = "_start" };
 }
 
-pub fn addPlatformSteps(b: *std.Build, isa: ?Isa, exe: *std.Build.Step.Compile) void {
+/// Add run step for NEMU; isa_name is unused here because run is not implemented.
+pub fn addPlatformSteps(b: *std.Build, isa_name: ?[]const u8, exe: *std.Build.Step.Compile) void {
     _ = exe;
-    _ = isa;
+    _ = isa_name;
 
     const run_step = b.step("run", "Run the app");
     const warn_step = b.addSystemCommand(&.{ "sh", "-c", "echo warning: run for nemu is not implemented yet" });

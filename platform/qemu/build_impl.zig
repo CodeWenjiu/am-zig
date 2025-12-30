@@ -1,14 +1,6 @@
 const std = @import("std");
 
-const Isa = @import("../build_impl.zig").Isa;
-const isa_riscv_target = @import("../../isa/riscv/target.zig");
-
-pub fn targetQuery(isa: Isa) std.Target.Query {
-    var q = isa_riscv_target.riscv32BaseQuery();
-    isa_riscv_target.applyIsaFeatures(&q, isa, .conservative);
-    return q;
-}
-
+/// Create the entry module for QEMU: wires app runtime and ISA start shim.
 pub fn entryModule(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
@@ -30,29 +22,28 @@ pub fn entryModule(
     return entry_mod;
 }
 
+/// QEMU uses the shared RISC-V linker script and _start symbol.
 pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
     exe.setLinkerScript(b.path("isa/riscv/linker_common.x"));
     exe.entry = .{ .symbol_name = "_start" };
 }
 
-fn qemuCpuForIsa(isa: Isa) []const u8 {
-    return switch (isa) {
-        .rv32i => "rv32",
-        .rv32im => "rv32",
-        .rv32imac => "rv32",
-        .rv32im_zve32x => "rv32,v=true,vlen=128",
-    };
+fn qemuCpuForIsaName(isa_name: []const u8) []const u8 {
+    // Only Zve32x needs explicit vector CPU config; others map to plain rv32.
+    if (std.mem.eql(u8, isa_name, "rv32im_zve32x")) return "rv32,v=true,vlen=128";
+    return "rv32";
 }
 
-pub fn addPlatformSteps(b: *std.Build, isa: ?Isa, exe: *std.Build.Step.Compile) void {
-    const chosen_isa = isa orelse @import("../build_impl.zig").missingOptionExit(Isa, "isa");
+/// Add run step for QEMU; isa_name is a string tag (e.g., "rv32imac").
+pub fn addPlatformSteps(b: *std.Build, isa_name: ?[]const u8, exe: *std.Build.Step.Compile) void {
+    const chosen_isa = isa_name orelse std.debug.panic("Missing required -Disa for platform=qemu", .{});
 
     const run_qemu = b.addSystemCommand(&.{
         "qemu-system-riscv32",
         "-machine",
         "virt",
         "-cpu",
-        qemuCpuForIsa(chosen_isa),
+        qemuCpuForIsaName(chosen_isa),
         "-m",
         "128M",
         "-nographic",

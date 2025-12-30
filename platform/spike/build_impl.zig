@@ -3,41 +3,6 @@ const std = @import("std");
 const root = @import("../build_impl.zig");
 const Isa = root.Isa;
 
-fn riscv32QueryBase() std.Target.Query {
-    return .{
-        .cpu_arch = .riscv32,
-        .os_tag = .freestanding,
-        .abi = .none,
-        .cpu_model = .{ .explicit = &std.Target.riscv.cpu.generic_rv32 },
-        .cpu_features_add = .empty,
-        .cpu_features_sub = .empty,
-    };
-}
-
-pub fn targetQuery(isa: Isa) std.Target.Query {
-    var q = riscv32QueryBase();
-
-    const F = std.Target.riscv.Feature;
-
-    switch (isa) {
-        .rv32i => {},
-        .rv32im => {
-            q.cpu_features_add.addFeature(@intFromEnum(F.m));
-        },
-        .rv32imac => {
-            q.cpu_features_add.addFeature(@intFromEnum(F.m));
-            q.cpu_features_add.addFeature(@intFromEnum(F.a));
-            q.cpu_features_add.addFeature(@intFromEnum(F.c));
-        },
-        .rv32im_zve32x => {
-            q.cpu_features_add.addFeature(@intFromEnum(F.m));
-            q.cpu_features_add.addFeature(@intFromEnum(F.zve32x));
-        },
-    }
-
-    return q;
-}
-
 pub fn entryModule(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
@@ -62,7 +27,7 @@ pub fn entryModule(
 }
 
 pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
-    exe.setLinkerScript(b.path("isa/riscv/linker_spike.x"));
+    exe.setLinkerScript(b.path("platform/spike/linker.x"));
     exe.entry = .{ .symbol_name = "_start" };
 }
 

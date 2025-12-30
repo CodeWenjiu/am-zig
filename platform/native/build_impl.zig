@@ -2,18 +2,6 @@ const std = @import("std");
 
 const Isa = @import("../build_impl.zig").Isa;
 
-pub fn resolvedTarget(b: *std.Build, isa: ?Isa) std.Build.ResolvedTarget {
-    if (isa) |_| {
-        std.debug.print("warning: -Disa with -Dplatform=native is ignored (native ISA is determined by the host)\n", .{});
-    }
-    return b.standardTargetOptions(.{});
-}
-
-pub fn targetQuery(isa: Isa) std.Target.Query {
-    _ = isa;
-    return .{};
-}
-
 pub fn entryModule(
     b: *std.Build,
     target: std.Build.ResolvedTarget,

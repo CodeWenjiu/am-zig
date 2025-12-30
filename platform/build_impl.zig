@@ -1,4 +1,8 @@
 const std = @import("std");
+const isa_types = @import("../isa/types.zig");
+
+pub const Isa = isa_types.Isa;
+pub const IsaFamily = isa_types.IsaFamily;
 
 pub const Platform = enum {
     native,
@@ -23,26 +27,6 @@ pub const Platform = enum {
             if (self == x.tag) return f(x.module, ctx);
         }
         unreachable;
-    }
-
-    pub fn resolvedTarget(self: Platform, b: *std.Build, isa: ?Isa) std.Build.ResolvedTarget {
-        if (self != .native) {
-            const chosen_isa = isa orelse missingOptionExit(Isa, "isa");
-            return b.resolveTargetQuery(self.targetQuery(chosen_isa));
-        }
-
-        return native_build.resolvedTarget(b, isa);
-    }
-
-    pub fn targetQuery(self: Platform, isa: Isa) std.Target.Query {
-        const Ctx = struct { isa: Isa };
-        const ctx: Ctx = .{ .isa = isa };
-
-        return self.withImpl(std.Target.Query, ctx, struct {
-            fn call(comptime M: type, c: Ctx) std.Target.Query {
-                return M.targetQuery(c.isa);
-            }
-        }.call);
     }
 
     pub fn entryModule(
@@ -125,29 +109,6 @@ pub fn attachCommonArgv(
     });
     entry_mod.addImport("argv", argv_pkg);
 }
-
-pub const IsaFamily = enum {
-    riscv,
-};
-
-pub const Isa = enum {
-    rv32i,
-    rv32im,
-    rv32imac,
-    rv32im_zve32x,
-
-    pub fn getFamily(self: Isa) IsaFamily {
-        return switch (self) {
-            .rv32i,
-            .rv32im,
-            .rv32imac,
-            .rv32im_zve32x,
-            => .riscv,
-        };
-    }
-};
-
-const build = @import("build_impl.zig");
 
 const native_build = @import("native/build_impl.zig");
 const nemu_build = @import("nemu/build_impl.zig");

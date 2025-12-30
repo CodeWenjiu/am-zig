@@ -1,8 +1,9 @@
 const std = @import("std");
 
 const platform_lib = @import("platform/build_impl.zig");
+const isa_dispatch = @import("isa/build_impl.zig");
 const Platform = platform_lib.Platform;
-const Isa = platform_lib.Isa;
+const Isa = isa_dispatch.Isa;
 
 pub fn build(b: *std.Build) void {
     const platform = b.option(Platform, "platform", "Select the platform") orelse platform_lib.missingOptionExit(Platform, "platform");
@@ -13,7 +14,22 @@ pub fn build(b: *std.Build) void {
     };
     const arg = b.option([]const u8, "arg", "Optional argument string passed to bare-metal runtime via build options (space-delimited)");
 
-    const target = platform.resolvedTarget(b, isa);
+    const target = switch (platform) {
+        .native => blk: {
+            if (isa) |_| {
+                std.debug.print("warning: -Disa with -Dplatform=native is ignored (native ISA is determined by the host)\n", .{});
+            }
+            break :blk b.standardTargetOptions(.{});
+        },
+        else => blk: {
+            const chosen_isa = isa orelse platform_lib.missingOptionExit(Isa, "isa");
+            const strip = switch (platform) {
+                .qemu, .nemu => isa_dispatch.RiscvStripPreset.conservative,
+                else => isa_dispatch.RiscvStripPreset.none,
+            };
+            break :blk b.resolveTargetQuery(isa_dispatch.targetQuery(chosen_isa, strip));
+        },
+    };
 
     const optimize = .ReleaseFast;
 
@@ -25,7 +41,6 @@ pub fn build(b: *std.Build) void {
 
     const entry_mod = platform.entryModule(b, target, optimize, app_mod);
 
-
     const exe_name = bin;
 
     platform_lib.attachCommonArgv(b, entry_mod, target, optimize, arg orelse "", exe_name);
@@ -34,7 +49,6 @@ pub fn build(b: *std.Build) void {
         .name = exe_name,
         .root_module = entry_mod,
     });
-
 
     platform.configureExecutable(b, exe);
     platform.addPlatformSteps(b, isa, exe);

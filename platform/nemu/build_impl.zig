@@ -8,9 +8,9 @@ fn riscv32QueryBase() std.Target.Query {
         .cpu_arch = .riscv32,
         .os_tag = .freestanding,
         .abi = .none,
-        // Zig 0.15 baseline_rv32 includes A+C+D+I+M by default.
-        // Start from it, then explicitly add/sub features to match the selected ISA.
-        .cpu_model = .{ .explicit = &std.Target.riscv.cpu.baseline_rv32 },
+        // Zig 0.15 generic_rv32 excludes extensions by default.
+        // Start from it, then explicitly add features to match the selected ISA.
+        .cpu_model = .{ .explicit = &std.Target.riscv.cpu.generic_rv32 },
     };
 }
 

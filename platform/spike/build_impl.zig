@@ -8,7 +8,7 @@ fn riscv32QueryBase() std.Target.Query {
         .cpu_arch = .riscv32,
         .os_tag = .freestanding,
         .abi = .none,
-        .cpu_model = .{ .explicit = &std.Target.riscv.cpu.baseline_rv32 },
+        .cpu_model = .{ .explicit = &std.Target.riscv.cpu.generic_rv32 },
         .cpu_features_add = .empty,
         .cpu_features_sub = .empty,
     };
@@ -18,11 +18,6 @@ pub fn targetQuery(isa: Isa) std.Target.Query {
     var q = riscv32QueryBase();
 
     const F = std.Target.riscv.Feature;
-
-    q.cpu_features_sub.addFeature(@intFromEnum(F.c));
-    q.cpu_features_sub.addFeature(@intFromEnum(F.a));
-    q.cpu_features_sub.addFeature(@intFromEnum(F.d));
-    q.cpu_features_sub.addFeature(@intFromEnum(F.m));
 
     switch (isa) {
         .rv32i => {},

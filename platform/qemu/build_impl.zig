@@ -53,12 +53,18 @@ pub fn entryModule(
         .target = target,
         .optimize = optimize,
     });
+    const isa_riscv_start_pkg = b.createModule(.{
+        .root_source_file = b.path("isa/riscv/start.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
     entry_mod.addImport("app", app_mod);
+    entry_mod.addImport("isa_riscv_start", isa_riscv_start_pkg);
     return entry_mod;
 }
 
 pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
-    exe.setLinkerScript(b.path("platform/qemu/riscv/linker.x"));
+    exe.setLinkerScript(b.path("isa/riscv/linker_common.x"));
     exe.entry = .{ .symbol_name = "_start" };
 }
 

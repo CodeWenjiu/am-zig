@@ -5,12 +5,14 @@ const build_options = @import("build_options");
 const argv_util = @import("argv");
 
 // ISA abstraction layer
+
 // In a real scenario, this could be selected via build options
-const isa = @import("riscv/start.zig");
+
+const isa_riscv_start = @import("isa_riscv_start");
 
 // Ensure ISA symbols (like _start) are compiled and exported
 comptime {
-    _ = isa;
+    _ = isa_riscv_start;
 }
 
 pub const std_options: std.Options = .{
@@ -64,12 +66,25 @@ export fn call_main_wrapper() noreturn {
         }
     }
 
-    isa.quit();
+    quit();
+}
+
+const QEMU_TEST_DEVICE: usize = 0x10_0000;
+const QEMU_EXIT_SUCESS: u32 = 0x5555;
+const QEMU_EXIT_FAILURE: u32 = 0x3333;
+
+fn quit() noreturn {
+    const exit_value: u32 = QEMU_EXIT_SUCESS;
+    const quit_reg = @as(*volatile u32, @ptrFromInt(QEMU_TEST_DEVICE));
+    quit_reg.* = exit_value;
+    while (true) {
+        asm volatile ("wfi");
+    }
 }
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, _: ?usize) noreturn {
     uart.puts("\nPANIC: ");
     uart.puts(msg);
     uart.puts("\n");
-    isa.quit();
+    quit();
 }

@@ -6,7 +6,7 @@ const argv_util = @import("argv");
 
 // ISA abstraction layer
 // In a real scenario, this could be selected via build options
-const isa = @import("riscv/start.zig");
+const isa_riscv_start = @import("isa_riscv_start");
 
 pub const std_options: std.Options = .{
     .logFn = uartLogFn,
@@ -59,12 +59,19 @@ export fn call_main_wrapper() noreturn {
         }
     }
 
-    isa.quit();
+    quit();
+}
+
+fn quit() noreturn {
+    asm volatile ("ebreak");
+    while (true) {
+        asm volatile ("wfi");
+    }
 }
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, _: ?usize) noreturn {
     uart.puts("\nPANIC: ");
     uart.puts(msg);
     uart.puts("\n");
-    isa.quit();
+    quit();
 }

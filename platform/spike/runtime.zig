@@ -6,11 +6,11 @@ const argv_util = @import("argv");
 
 // ISA abstraction layer
 // In a real scenario, this could be selected via build options
-const isa = @import("riscv/start.zig");
+const isa_riscv_start = @import("isa_riscv_start");
 
 // Ensure ISA symbols (like _start) are compiled and exported
 comptime {
-    _ = isa;
+    _ = isa_riscv_start;
 }
 
 pub const std_options: std.Options = .{
@@ -66,12 +66,21 @@ export fn call_main_wrapper() noreturn {
         }
     }
 
-    isa.quit();
+    htifExit(1);
+}
+
+extern var tohost: u64;
+
+fn htifExit(code: u64) noreturn {
+    @as(*volatile u64, @ptrCast(&tohost)).* = code;
+    while (true) {
+        asm volatile ("wfi");
+    }
 }
 
 pub fn panic(msg: []const u8, _: ?*std.builtin.StackTrace, _: ?usize) noreturn {
     uart.puts("\nPANIC: ");
     uart.puts(msg);
     uart.puts("\n");
-    isa.quit();
+    htifExit(1);
 }

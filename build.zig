@@ -29,7 +29,28 @@ pub fn build(b: *std.Build) void {
     const resolved = if (is_native)
         isa_dispatch.ResolvedTarget{ .query = .{}, .feature_profile = null }
     else
-        isa_dispatch.resolveNonNativeTarget(arch_opt, feature_opt, b.allocator) catch std.process.exit(1);
+        isa_dispatch.resolveNonNativeTarget(arch_opt, feature_opt, b.allocator) catch |e| {
+            switch (e) {
+                error.MissingTarget => {
+                    std.debug.print("Missing required argument: -Dtarget=<arch>\n", .{});
+                },
+                error.UnknownFeature => {
+                    const arch = arch_opt orelse unreachable;
+                    const profile_flags = isa_dispatch.resolveFeatureProfileString(arch, feature_opt);
+
+                    const hint = isa_dispatch.formatSupportedProfiles(b.allocator);
+                    std.debug.print("Unknown feature flag(s) in: {s}\nSupported format: {s}\n", .{ profile_flags, hint });
+                },
+                error.UnsupportedArch => {
+                    const arch = arch_opt orelse unreachable;
+                    std.debug.print("Unsupported architecture: {s}\n", .{@tagName(arch)});
+                },
+                error.OutOfMemory => {
+                    std.debug.print("Out of memory while resolving target\n", .{});
+                },
+            }
+            std.process.exit(1);
+        };
 
     const target = b.resolveTargetQuery(resolved.query);
     const optimize = .ReleaseFast;
@@ -59,4 +80,3 @@ pub fn build(b: *std.Build) void {
     });
     b.getInstallStep().dependOn(&install_exe.step);
 }
-

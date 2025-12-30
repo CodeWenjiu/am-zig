@@ -46,80 +46,43 @@ const known_multi_letter_extensions = &[_][]const u8{
     "zvksed",   "zvksg",  "zvksha",  "zvkshb",
 };
 
-fn countTags(profile: []const u8) usize {
-    if (profile.len == 0) return 0;
+fn parseNextTag(profile: []const u8, pos: *usize) ?[]const u8 {
+    while (pos.* < profile.len and profile[pos.*] == '_') {
+        pos.* += 1;
+    }
 
-    var count: usize = 0;
-    var pos: usize = 0;
+    if (pos.* >= profile.len) return null;
 
-    while (pos < profile.len) {
-        var matched = false;
-
-        for (known_multi_letter_extensions) |ext| {
-            if (std.mem.startsWith(u8, profile[pos..], ext)) {
-                count += 1;
-                pos += ext.len;
-                matched = true;
-                break;
-            }
-        }
-
-        if (!matched) {
-            if (profile[pos] == '_') {
-                pos += 1;
-            } else {
-                count += 1;
-                pos += 1;
-            }
+    for (known_multi_letter_extensions) |ext| {
+        if (std.mem.startsWith(u8, profile[pos.*..], ext)) {
+            const out = ext;
+            pos.* += ext.len;
+            return out;
         }
     }
 
-    return count;
-}
-
-fn fillTags(profile: []const u8, tags: [][]const u8) void {
-    if (profile.len == 0) return;
-
-    var idx: usize = 0;
-    var pos: usize = 0;
-
-    while (pos < profile.len) {
-        var matched = false;
-
-        for (known_multi_letter_extensions) |ext| {
-            if (std.mem.startsWith(u8, profile[pos..], ext)) {
-                tags[idx] = ext;
-                idx += 1;
-                pos += ext.len;
-                matched = true;
-                break;
-            }
-        }
-
-        if (!matched) {
-            if (profile[pos] == '_') {
-                pos += 1;
-            } else {
-                tags[idx] = profile[pos .. pos + 1];
-                idx += 1;
-                pos += 1;
-            }
-        }
-    }
+    const out = profile[pos.* .. pos.* + 1];
+    pos.* += 1;
+    return out;
 }
 
 pub fn parseFeatureTags(
     allocator: std.mem.Allocator,
     profile: []const u8,
 ) (FeatureParseError)![]const []const u8 {
-    const count = countTags(profile);
-    if (count == 0) {
-        return &.{};
+    if (profile.len == 0) return &.{};
+
+    var list = try std.ArrayList([]const u8).initCapacity(allocator, 0);
+    errdefer list.deinit(allocator);
+
+    var pos: usize = 0;
+    while (parseNextTag(profile, &pos)) |tag| {
+        try list.append(allocator, tag);
     }
 
-    const tags = try allocator.alloc([]const u8, count);
-    fillTags(profile, tags);
-    return tags;
+    if (list.items.len == 0) return &.{};
+
+    return try list.toOwnedSlice(allocator);
 }
 
 pub fn formatSupportedProfiles(_: std.mem.Allocator) []const u8 {

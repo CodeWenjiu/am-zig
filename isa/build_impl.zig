@@ -8,9 +8,29 @@ pub const supportedProfileNames = riscv.supportedProfileNames;
 pub const formatSupportedProfiles = riscv.formatSupportedProfiles;
 
 pub const TargetQueryError = error{
+    /// The requested architecture isn't supported by this ISA layer.
     UnsupportedArch,
+    /// Feature profile contained an unknown/unsupported feature tag.
     UnknownFeature,
+    /// Allocation failed while parsing/processing the feature profile.
+    OutOfMemory,
+    /// Missing required argument for non-native builds.
+    MissingTarget,
 };
+
+/// Compute the feature profile string to use, given an architecture and an optional user-provided
+/// feature flag string.
+///
+/// Behavior is kept consistent with the build CLI:
+/// - If `feature_opt` is null, use the arch default profile name.
+/// - If `feature_opt` is an empty string, treat it as "use default".
+/// - Otherwise, use the provided string as-is.
+pub fn resolveFeatureProfileString(arch: std.Target.Cpu.Arch, feature_opt: ?[]const u8) []const u8 {
+    return if (feature_opt) |flags|
+        if (flags.len != 0) flags else defaultProfileName(arch)
+    else
+        defaultProfileName(arch);
+}
 
 pub fn targetQueryFromProfile(
     profile_string: []const u8,
@@ -20,7 +40,7 @@ pub fn targetQueryFromProfile(
 ) TargetQueryError!std.Target.Query {
     const tags = riscv.parseFeatureTags(allocator, profile_string) catch |e| switch (e) {
         error.UnknownFeature => return TargetQueryError.UnknownFeature,
-        error.OutOfMemory => return TargetQueryError.UnknownFeature,
+        error.OutOfMemory => return TargetQueryError.OutOfMemory,
     };
     defer allocator.free(tags);
 
@@ -60,28 +80,11 @@ pub fn resolveNonNativeTarget(
     feature_opt: ?[]const u8,
     allocator: std.mem.Allocator,
 ) TargetQueryError!ResolvedTarget {
-    const arch = arch_opt orelse {
-        std.debug.print("Missing required argument: -Dtarget=<arch>\n", .{});
-        std.process.exit(1);
-    };
+    const arch = arch_opt orelse return TargetQueryError.MissingTarget;
 
-    const profile_flags = if (feature_opt) |flags|
-        if (flags.len != 0) flags else defaultProfileName(arch)
-    else
-        defaultProfileName(arch);
+    const profile_flags = resolveFeatureProfileString(arch, feature_opt);
 
-    const query = targetQueryFromProfile(profile_flags, arch, allocator, .none) catch |e| {
-        switch (e) {
-            error.UnknownFeature => {
-                const hint = formatSupportedProfiles(allocator);
-                std.debug.print("Unknown feature flag(s) in: {s}\nSupported format: {s}\n", .{ profile_flags, hint });
-            },
-            error.UnsupportedArch => {
-                std.debug.print("Unsupported architecture: {s}\n", .{@tagName(arch)});
-            },
-        }
-        std.process.exit(1);
-    };
+    const query = try targetQueryFromProfile(profile_flags, arch, allocator, .none);
 
     return ResolvedTarget{
         .query = query,

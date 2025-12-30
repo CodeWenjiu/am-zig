@@ -28,10 +28,10 @@ pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
     exe.entry = .{ .symbol_name = "_start" };
 }
 
-/// Add run step for NEMU; isa_name is unused here because run is not implemented.
-pub fn addPlatformSteps(b: *std.Build, isa_name: ?[]const u8, exe: *std.Build.Step.Compile) void {
+/// Add run step for NEMU; feature_profile is unused here because run is not implemented.
+pub fn addPlatformSteps(b: *std.Build, feature_profile: ?[]const u8, exe: *std.Build.Step.Compile) void {
     _ = exe;
-    _ = isa_name;
+    _ = feature_profile;
 
     const run_step = b.step("run", "Run the app");
     const warn_step = b.addSystemCommand(&.{ "sh", "-c", "echo warning: run for nemu is not implemented yet" });

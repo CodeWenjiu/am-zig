@@ -28,22 +28,47 @@ pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
     exe.entry = .{ .symbol_name = "_start" };
 }
 
-fn spikeIsaForName(isa_name: []const u8) []const u8 {
-    if (std.mem.eql(u8, isa_name, "rv32i")) return "rv32i";
-    if (std.mem.eql(u8, isa_name, "rv32im")) return "rv32im";
-    if (std.mem.eql(u8, isa_name, "rv32im_zve32x")) return "rv32im_zve32x_zvl128b";
-    if (std.mem.eql(u8, isa_name, "rv32imac")) return "rv32imac";
-    std.debug.panic("Unsupported ISA '{s}' for spike", .{isa_name});
+fn containsChar(flags: []const u8, ch: u8) bool {
+    for (flags) |c| {
+        if (c == ch) return true;
+    }
+    return false;
 }
 
-pub fn addPlatformSteps(b: *std.Build, isa_name: ?[]const u8, exe: *std.Build.Step.Compile) void {
-    const chosen_isa = isa_name orelse std.debug.panic("Missing required -Disa for platform=spike", .{});
-    // const batch = b.option(bool, "batch", "Batch mode (disable interactive debugger)") orelse false;
+fn containsSubstring(flags: []const u8, substr: []const u8) bool {
+    return std.mem.indexOf(u8, flags, substr) != null;
+}
+
+fn spikeIsaForFeatureFlags(flags: []const u8) []const u8 {
+    const has_i = containsChar(flags, 'i');
+    const has_m = containsChar(flags, 'm');
+    const has_a = containsChar(flags, 'a');
+    const has_c = containsChar(flags, 'c');
+    const has_zve = containsSubstring(flags, "zve");
+
+    if (!has_i) {
+        std.debug.panic("Base extension 'i' required for spike", .{});
+    }
+
+    if (has_zve) {
+        if (has_m) return "rv32im_zve32x_zvl128b";
+        return "rv32i";
+    }
+
+    if (has_m and has_a and has_c) return "rv32imac";
+    if (has_m and !has_a and !has_c) return "rv32im";
+    if (has_i and !has_m and !has_a and !has_c) return "rv32i";
+
+    std.debug.panic("Unsupported feature combination: {s}", .{flags});
+}
+
+pub fn addPlatformSteps(b: *std.Build, feature_profile: ?[]const u8, exe: *std.Build.Step.Compile) void {
+    const chosen_flags = feature_profile orelse std.debug.panic("Missing required -Dfeature for platform=spike", .{});
 
     const run_spike = b.addSystemCommand(&.{
         "spike",
         "--isa",
-        spikeIsaForName(chosen_isa),
+        spikeIsaForFeatureFlags(chosen_flags),
         "-m0x80000000:0x08000000",
     });
 

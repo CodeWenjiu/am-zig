@@ -1,6 +1,5 @@
 const std = @import("std");
 
-/// Create the entry module for QEMU: wires app runtime and ISA start shim.
 pub fn entryModule(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
@@ -22,28 +21,100 @@ pub fn entryModule(
     return entry_mod;
 }
 
-/// QEMU uses the shared RISC-V linker script and _start symbol.
 pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
     exe.setLinkerScript(b.path("isa/riscv/linker_common.x"));
     exe.entry = .{ .symbol_name = "_start" };
 }
 
-fn qemuCpuForIsaName(isa_name: []const u8) []const u8 {
-    // Only Zve32x needs explicit vector CPU config; others map to plain rv32.
-    if (std.mem.eql(u8, isa_name, "rv32im_zve32x")) return "rv32,v=true,vlen=128";
-    return "rv32";
+fn containsChar(flags: []const u8, ch: u8) bool {
+    for (flags) |c| {
+        if (c == ch) return true;
+    }
+    return false;
 }
 
-/// Add run step for QEMU; isa_name is a string tag (e.g., "rv32imac").
-pub fn addPlatformSteps(b: *std.Build, isa_name: ?[]const u8, exe: *std.Build.Step.Compile) void {
-    const chosen_isa = isa_name orelse std.debug.panic("Missing required -Disa for platform=qemu", .{});
+fn containsSubstring(flags: []const u8, substr: []const u8) bool {
+    return std.mem.indexOf(u8, flags, substr) != null;
+}
+
+fn qemuCpuForFeatureFlags(allocator: std.mem.Allocator, flags: []const u8) []const u8 {
+    const has_m = containsChar(flags, 'm');
+    const has_a = containsChar(flags, 'a');
+    const has_f = containsChar(flags, 'f');
+    const has_d = containsChar(flags, 'd');
+    const has_c = containsChar(flags, 'c');
+    const has_zve = containsSubstring(flags, "zve");
+
+    var parts: [8][]const u8 = undefined;
+    var part_count: usize = 0;
+
+    parts[part_count] = "rv32";
+    part_count += 1;
+
+    if (has_m) {
+        parts[part_count] = "m=true";
+        part_count += 1;
+    }
+    if (has_a) {
+        parts[part_count] = "a=true";
+        part_count += 1;
+    }
+    if (has_f) {
+        parts[part_count] = "f=true";
+        part_count += 1;
+    }
+    if (has_d) {
+        parts[part_count] = "d=true";
+        part_count += 1;
+    }
+    if (has_c) {
+        parts[part_count] = "c=true";
+        part_count += 1;
+    }
+    if (has_zve) {
+        parts[part_count] = "v=true";
+        part_count += 1;
+        parts[part_count] = "vlen=128";
+        part_count += 1;
+    }
+
+    const total_len = blk: {
+        var len: usize = 0;
+        for (parts[0..part_count]) |part| {
+            len += part.len + 1;
+        }
+        break :blk len;
+    };
+
+    const cpu_str = allocator.alloc(u8, total_len) catch return "rv32";
+    var pos: usize = 0;
+
+    for (parts[0..part_count], 0..) |part, i| {
+        if (i == 0) {
+            @memcpy(cpu_str[pos .. pos + part.len], part);
+            pos += part.len;
+        } else {
+            cpu_str[pos] = ',';
+            pos += 1;
+            @memcpy(cpu_str[pos .. pos + part.len], part);
+            pos += part.len;
+        }
+    }
+
+    return cpu_str[0..pos];
+}
+
+pub fn addPlatformSteps(b: *std.Build, feature_profile: ?[]const u8, exe: *std.Build.Step.Compile) void {
+    const chosen_flags = feature_profile orelse std.debug.panic("Missing required -Dfeature for platform=qemu", .{});
+
+    const cpu_config = qemuCpuForFeatureFlags(b.allocator, chosen_flags);
 
     const run_qemu = b.addSystemCommand(&.{
         "qemu-system-riscv32",
         "-machine",
         "virt",
         "-cpu",
-        qemuCpuForIsaName(chosen_isa),
+        cpu_config,
         "-m",
         "128M",
         "-nographic",

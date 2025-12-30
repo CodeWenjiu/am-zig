@@ -2,40 +2,36 @@ const std = @import("std");
 
 const platform_lib = @import("platform/build_impl.zig");
 const isa_dispatch = @import("isa/build_impl.zig");
+
 const Platform = platform_lib.Platform;
-const Isa = isa_dispatch.Isa;
 
 pub fn build(b: *std.Build) void {
     const platform = b.option(Platform, "platform", "Select the platform") orelse platform_lib.missingOptionExit(Platform, "platform");
-    const isa: ?Isa = b.option(Isa, "isa", "Select the ISA (required for non-native platforms; forbidden for native)");
+    const arch_opt = b.option(std.Target.Cpu.Arch, "target", "Select CPU architecture (required for non-native, e.g. riscv32)");
+    const feature_opt = b.option([]const u8, "feature", "Optional feature flags without arch prefix (e.g. mac, imac, im_zve32x); defaults per arch");
     const bin = b.option([]const u8, "bin", "Select the binary under bin/<name>/main.zig") orelse {
         std.debug.print("Missing required argument: -Dbin=<name>\n", .{});
         std.process.exit(1);
     };
     const arg = b.option([]const u8, "arg", "Optional argument string passed to bare-metal runtime via build options (space-delimited)");
 
-    const target = switch (platform) {
-        .native => blk: {
-            if (isa) |_| {
-                std.debug.print("warning: -Disa with -Dplatform=native is ignored (native ISA is determined by the host)\n", .{});
-            }
-            break :blk b.standardTargetOptions(.{});
-        },
-        else => blk: {
-            const chosen_isa = isa orelse platform_lib.missingOptionExit(Isa, "isa");
-            const strip = switch (platform) {
-                .qemu, .nemu => isa_dispatch.RiscvStripPreset.conservative,
-                else => isa_dispatch.RiscvStripPreset.none,
-            };
-            break :blk b.resolveTargetQuery(isa_dispatch.targetQuery(chosen_isa, strip));
-        },
-    };
+    const is_native = platform == .native;
 
-    const isa_name: ?[]const u8 = switch (platform) {
-        .native => null,
-        else => @tagName(isa orelse platform_lib.missingOptionExit(Isa, "isa")),
-    };
+    if (is_native) {
+        if (arch_opt != null) {
+            std.debug.print("warning: -Dtarget is ignored for platform=native (host target is used)\n", .{});
+        }
+        if (feature_opt != null) {
+            std.debug.print("warning: -Dfeature is ignored for platform=native (host features are used)\n", .{});
+        }
+    }
 
+    const resolved = if (is_native)
+        isa_dispatch.ResolvedTarget{ .query = .{}, .feature_profile = null }
+    else
+        isa_dispatch.resolveNonNativeTarget(arch_opt, feature_opt, b.allocator) catch std.process.exit(1);
+
+    const target = b.resolveTargetQuery(resolved.query);
     const optimize = .ReleaseFast;
 
     const app_mod = b.createModule(.{
@@ -56,10 +52,11 @@ pub fn build(b: *std.Build) void {
     });
 
     platform.configureExecutable(b, exe);
-    platform.addPlatformSteps(b, isa_name, exe);
+    platform.addPlatformSteps(b, resolved.feature_profile, exe);
 
     const install_exe = b.addInstallArtifact(exe, .{
         .dest_dir = .{ .override = .{ .custom = @tagName(platform) } },
     });
     b.getInstallStep().dependOn(&install_exe.step);
 }
+

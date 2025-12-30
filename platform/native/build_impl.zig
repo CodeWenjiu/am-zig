@@ -17,8 +17,8 @@ pub fn entryModule(
 
 pub fn configureExecutable(_: *std.Build, _: *std.Build.Step.Compile) void {}
 
-pub fn addPlatformSteps(b: *std.Build, isa_name: ?[]const u8, exe: *std.Build.Step.Compile) void {
-    _ = isa_name;
+pub fn addPlatformSteps(b: *std.Build, feature_profile: ?[]const u8, exe: *std.Build.Step.Compile) void {
+    _ = feature_profile;
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());

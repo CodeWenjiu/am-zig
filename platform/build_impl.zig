@@ -58,7 +58,7 @@ pub const Platform = enum {
         }.call);
     }
 
-    pub fn addPlatformSteps(self: Platform, b: *std.Build, isa_name: ?[]const u8, exe: *std.Build.Step.Compile) void {
+    pub fn addPlatformSteps(self: Platform, b: *std.Build, feature_profile: ?[]const u8, exe: *std.Build.Step.Compile) void {
         const objdump = b.addSystemCommand(&.{ "objdump", "-d" });
         objdump.addFileArg(exe.getEmittedBin());
 
@@ -72,12 +72,12 @@ pub const Platform = enum {
         const dump = b.step("dump", "Generate disassembly and save to kernel.asm");
         dump.dependOn(dump_step);
 
-        const Ctx = struct { b: *std.Build, isa_name: ?[]const u8, exe: *std.Build.Step.Compile };
-        const ctx: Ctx = .{ .b = b, .isa_name = isa_name, .exe = exe };
+        const Ctx = struct { b: *std.Build, feature_profile: ?[]const u8, exe: *std.Build.Step.Compile };
+        const ctx: Ctx = .{ .b = b, .feature_profile = feature_profile, .exe = exe };
 
         return self.withImpl(void, ctx, struct {
             fn call(comptime M: type, c: Ctx) void {
-                return M.addPlatformSteps(c.b, c.isa_name, c.exe);
+                return M.addPlatformSteps(c.b, c.feature_profile, c.exe);
             }
         }.call);
     }

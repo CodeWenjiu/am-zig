@@ -7,6 +7,7 @@ const Isa = platform_lib.Isa;
 pub fn build(b: *std.Build) void {
     const platform = b.option(Platform, "platform", "Select the platform") orelse platform_lib.missingOptionExit(Platform, "platform");
     const isa: ?Isa = b.option(Isa, "isa", "Select the ISA (required for non-native platforms; forbidden for native)");
+    const arg = b.option([]const u8, "arg", "Optional argument string passed to bare-metal runtime via build options (space-delimited)");
 
     const target = platform.resolvedTarget(b, isa);
 
@@ -19,6 +20,12 @@ pub fn build(b: *std.Build) void {
     });
 
     const entry_mod = platform.entryModule(b, target, optimize, app_mod);
+
+    // Expose build options to the root module so bare-metal runtimes can read -Darg.
+    // Native can still use std.process.args(); bare-metal reads @import("build_options").arg.
+    const opts = b.addOptions();
+    opts.addOption([]const u8, "arg", arg orelse "");
+    entry_mod.addOptions("build_options", opts);
 
     const exe = b.addExecutable(.{
         .name = "kernel",

@@ -38,7 +38,7 @@ pub fn build(b: *std.Build) void {
                     const arch = arch_opt orelse unreachable;
                     const profile_flags = isa_dispatch.resolveFeatureProfileString(arch, feature_opt);
 
-                    const hint = isa_dispatch.formatSupportedProfiles(b.allocator);
+                    const hint = isa_dispatch.formatSupportedProfiles();
                     std.debug.print("Unknown feature flag(s) in: {s}\nSupported format: {s}\n", .{ profile_flags, hint });
                 },
                 error.UnsupportedArch => {
@@ -63,7 +63,34 @@ pub fn build(b: *std.Build) void {
 
     const entry_mod = platform.entryModule(b, target, optimize, app_mod);
 
-    const exe_name = bin;
+    // Canonical ISA id for artifact naming:
+    // - Non-native: "<arch>-<sorted_unique_features>"
+    // - Native: "native"
+    const isa_suffix = blk: {
+        if (is_native) break :blk "native";
+
+        const arch = arch_opt orelse unreachable;
+        const profile_flags = isa_dispatch.resolveFeatureProfileString(arch, feature_opt);
+
+        break :blk isa_dispatch.formatCanonicalIsaId(b.allocator, arch, profile_flags) catch |e| {
+            switch (e) {
+                error.UnknownFeature => {
+                    const hint = isa_dispatch.formatSupportedProfiles();
+                    std.debug.print("Unknown feature flag(s) in: {s}\nSupported format: {s}\n", .{ profile_flags, hint });
+                },
+                error.UnsupportedArch => {
+                    std.debug.print("Unsupported architecture: {s}\n", .{@tagName(arch)});
+                },
+                error.OutOfMemory => {
+                    std.debug.print("Out of memory while formatting ISA name\n", .{});
+                },
+                error.MissingTarget => unreachable,
+            }
+            std.process.exit(1);
+        };
+    };
+
+    const exe_name = b.fmt("{s}-{s}", .{ bin, isa_suffix });
 
     platform_lib.attachCommonArgv(b, entry_mod, target, optimize, arg orelse "", exe_name);
 
@@ -73,7 +100,7 @@ pub fn build(b: *std.Build) void {
     });
 
     platform.configureExecutable(b, exe);
-    platform.addPlatformSteps(b, resolved.feature_profile, exe);
+    platform.addPlatformSteps(b, resolved.feature_profile, exe_name, exe);
 
     const install_exe = b.addInstallArtifact(exe, .{
         .dest_dir = .{ .override = .{ .custom = @tagName(platform) } },

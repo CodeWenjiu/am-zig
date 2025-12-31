@@ -62,7 +62,9 @@ fn spikeIsaForFeatureFlags(flags: []const u8) []const u8 {
     std.debug.panic("Unsupported feature combination: {s}", .{flags});
 }
 
-pub fn addPlatformSteps(b: *std.Build, feature_profile: ?[]const u8, exe: *std.Build.Step.Compile) void {
+pub fn addPlatformSteps(b: *std.Build, feature_profile: ?[]const u8, exe_base_name: []const u8, exe: *std.Build.Step.Compile) void {
+    _ = exe_base_name;
+
     const chosen_flags = feature_profile orelse std.debug.panic("Missing required -Dfeature for platform=spike", .{});
 
     const run_spike = b.addSystemCommand(&.{

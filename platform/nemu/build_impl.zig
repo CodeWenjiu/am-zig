@@ -29,9 +29,10 @@ pub fn configureExecutable(b: *std.Build, exe: *std.Build.Step.Compile) void {
 }
 
 /// Add run step for NEMU; feature_profile is unused here because run is not implemented.
-pub fn addPlatformSteps(b: *std.Build, feature_profile: ?[]const u8, exe: *std.Build.Step.Compile) void {
+pub fn addPlatformSteps(b: *std.Build, feature_profile: ?[]const u8, exe_base_name: []const u8, exe: *std.Build.Step.Compile) void {
     _ = exe;
     _ = feature_profile;
+    _ = exe_base_name;
 
     const run_step = b.step("run", "Run the app");
     const warn_step = b.addSystemCommand(&.{ "sh", "-c", "echo warning: run for nemu is not implemented yet" });

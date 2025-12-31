@@ -58,26 +58,58 @@ pub const Platform = enum {
         }.call);
     }
 
-    pub fn addPlatformSteps(self: Platform, b: *std.Build, feature_profile: ?[]const u8, exe: *std.Build.Step.Compile) void {
+    pub fn addPlatformSteps(
+        self: Platform,
+        b: *std.Build,
+        feature_profile: ?[]const u8,
+        exe_base_name: []const u8,
+        exe: *std.Build.Step.Compile,
+    ) void {
         const objdump = b.addSystemCommand(&.{ "objdump", "-d" });
         objdump.addFileArg(exe.getEmittedBin());
 
         const dump_output = objdump.captureStdOut();
-        const install_dump = b.addInstallFile(dump_output, b.pathJoin(&.{ @tagName(self), "kernel.asm" }));
 
-        const dump_step = b.step(b.fmt("dump-{s}", .{@tagName(self)}), "Generate disassembly and save to kernel.asm");
+        // Name outputs as: <bin-name>-<isa>.asm
+        // - bin-name: exe_base_name (computed in build.zig; should already include canonical ISA id)
+        // - isa: no longer derived here; platform layer should stay ISA-agnostic
+        const asm_name = b.fmt("{s}.asm", .{exe_base_name});
+
+        const install_dump = b.addInstallFile(dump_output, b.pathJoin(&.{ @tagName(self), asm_name }));
+
+        const dump_step = b.step(
+            b.fmt("dump-{s}", .{@tagName(self)}),
+            b.fmt("Generate disassembly and save to {s}", .{asm_name}),
+        );
         dump_step.dependOn(b.getInstallStep());
         dump_step.dependOn(&install_dump.step);
 
-        const dump = b.step("dump", "Generate disassembly and save to kernel.asm");
+        const dump = b.step("dump", b.fmt("Generate disassembly and save to {s}", .{asm_name}));
         dump.dependOn(dump_step);
 
-        const Ctx = struct { b: *std.Build, feature_profile: ?[]const u8, exe: *std.Build.Step.Compile };
-        const ctx: Ctx = .{ .b = b, .feature_profile = feature_profile, .exe = exe };
+        const Ctx = struct {
+            b: *std.Build,
+            feature_profile: ?[]const u8,
+            exe_base_name: []const u8,
+            exe: *std.Build.Step.Compile,
+            dump_step: *std.Build.Step,
+        };
+        const ctx: Ctx = .{
+            .b = b,
+            .feature_profile = feature_profile,
+            .exe_base_name = exe_base_name,
+            .exe = exe,
+            .dump_step = dump_step,
+        };
 
         return self.withImpl(void, ctx, struct {
             fn call(comptime M: type, c: Ctx) void {
-                return M.addPlatformSteps(c.b, c.feature_profile, c.exe);
+                // Make dump a prerequisite of run (and any other platform-specific steps).
+                // This ensures the disassembly is always produced when you run.
+                M.addPlatformSteps(c.b, c.feature_profile, c.exe_base_name, c.exe);
+
+                const run_top = c.b.top_level_steps.get("run") orelse return;
+                run_top.step.dependOn(c.dump_step);
             }
         }.call);
     }

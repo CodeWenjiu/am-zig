@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const common = @import("../common/steps.zig");
+
 pub const Platform = enum {
     native,
     nemu,
@@ -11,6 +13,10 @@ pub const Platform = enum {
         module: type,
     };
 
+    // Per-platform implementations. These modules are expected to provide:
+    // - entryModule(...)
+    // - configureExecutable(...)
+    // - addPlatformSteps(b, feature_profile, exe_base_name, exe)
     const impls = [_]Impl{
         .{ .tag = .native, .module = native_build },
         .{ .tag = .nemu, .module = nemu_build },
@@ -58,6 +64,14 @@ pub const Platform = enum {
         }.call);
     }
 
+    /// Wire platform steps.
+    ///
+    /// Responsibilities:
+    /// - Create common steps (currently: objdump disassembly install + `dump` aggregation)
+    /// - Delegate platform-specific runnable steps (e.g. run qemu/spike/native)
+    /// - Ensure `dump` is a prerequisite for `run` (so disassembly is available for debugging)
+    ///
+    /// `exe_base_name` should already be the canonical output base name (e.g. "<bin>-<isa>").
     pub fn addPlatformSteps(
         self: Platform,
         b: *std.Build,
@@ -65,27 +79,8 @@ pub const Platform = enum {
         exe_base_name: []const u8,
         exe: *std.Build.Step.Compile,
     ) void {
-        const objdump = b.addSystemCommand(&.{ "objdump", "-d" });
-        objdump.addFileArg(exe.getEmittedBin());
-
-        const dump_output = objdump.captureStdOut();
-
-        // Name outputs as: <bin-name>-<isa>.asm
-        // - bin-name: exe_base_name (computed in build.zig; should already include canonical ISA id)
-        // - isa: no longer derived here; platform layer should stay ISA-agnostic
-        const asm_name = b.fmt("{s}.asm", .{exe_base_name});
-
-        const install_dump = b.addInstallFile(dump_output, b.pathJoin(&.{ @tagName(self), asm_name }));
-
-        const dump_step = b.step(
-            b.fmt("dump-{s}", .{@tagName(self)}),
-            b.fmt("Generate disassembly and save to {s}", .{asm_name}),
-        );
-        dump_step.dependOn(b.getInstallStep());
-        dump_step.dependOn(&install_dump.step);
-
-        const dump = b.step("dump", b.fmt("Generate disassembly and save to {s}", .{asm_name}));
-        dump.dependOn(dump_step);
+        // Common debug artifacts (disassembly).
+        const dump_steps = common.addDumpSteps(b, @tagName(self), exe_base_name, exe);
 
         const Ctx = struct {
             b: *std.Build,
@@ -94,20 +89,21 @@ pub const Platform = enum {
             exe: *std.Build.Step.Compile,
             dump_step: *std.Build.Step,
         };
+
         const ctx: Ctx = .{
             .b = b,
             .feature_profile = feature_profile,
             .exe_base_name = exe_base_name,
             .exe = exe,
-            .dump_step = dump_step,
+            .dump_step = dump_steps.platform_dump_step,
         };
 
         return self.withImpl(void, ctx, struct {
             fn call(comptime M: type, c: Ctx) void {
-                // Make dump a prerequisite of run (and any other platform-specific steps).
-                // This ensures the disassembly is always produced when you run.
+                // Platform-specific steps (e.g. create `run`).
                 M.addPlatformSteps(c.b, c.feature_profile, c.exe_base_name, c.exe);
 
+                // Make dump a prerequisite of run when run exists.
                 const run_top = c.b.top_level_steps.get("run") orelse return;
                 run_top.step.dependOn(c.dump_step);
             }
@@ -138,10 +134,10 @@ pub fn attachCommonArgv(
     entry_mod.addImport("argv", argv_pkg);
 }
 
-const native_build = @import("native/build_impl.zig");
-const nemu_build = @import("nemu/build_impl.zig");
-const qemu_build = @import("qemu/build_impl.zig");
-const spike_build = @import("spike/build_impl.zig");
+const native_build = @import("../native/build.zig");
+const nemu_build = @import("../nemu/build.zig");
+const qemu_build = @import("../qemu/build.zig");
+const spike_build = @import("../spike/build.zig");
 
 pub fn missingOptionExit(comptime T: type, name: []const u8) noreturn {
     std.debug.print("Missing required argument: -D{s}=<{s}>\n", .{ name, name });

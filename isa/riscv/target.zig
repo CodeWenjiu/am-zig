@@ -34,19 +34,6 @@ pub fn defaultProfileName(arch: std.Target.Cpu.Arch) []const u8 {
 
 pub const FeatureParseError = error{ UnknownFeature, OutOfMemory };
 
-pub fn formatSupportedProfiles() []const u8 {
-    return "Combine extensions without arch prefix (order-insensitive), e.g. i | im | imac | im_zve32x";
-}
-
-pub fn supportedProfileNames() []const []const u8 {
-    // Named/alias profiles (e.g. "gc", "gcv", "rv32imac") are intentionally not defined yet.
-    // Today we accept raw, order-insensitive extension tags via -Dfeature=... (e.g. "imac", "im_zve32x").
-    //
-    // Keeping this API (even when empty) makes it easy to add first-class, documented presets later
-    // without changing the build interface.
-    return &.{};
-}
-
 // IMPORTANT:
 //
 // We want "longest match wins" while parsing multi-letter extensions to avoid prefix collisions

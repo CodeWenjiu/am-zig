@@ -1,7 +1,7 @@
 const std = @import("std");
 
-const platform_lib = @import("platform/build_impl.zig");
-const isa_dispatch = @import("isa/build_impl.zig");
+const platform_lib = @import("platform/dispatch/platform.zig");
+const isa_dispatch = @import("isa/dispatch.zig");
 
 const Platform = platform_lib.Platform;
 
@@ -38,7 +38,7 @@ pub fn build(b: *std.Build) void {
                     const arch = arch_opt orelse unreachable;
                     const profile_flags = isa_dispatch.resolveFeatureProfileString(arch, feature_opt);
 
-                    const hint = isa_dispatch.formatSupportedProfiles();
+                    const hint = isa_dispatch.formatSupportedProfiles(arch);
                     std.debug.print("Unknown feature flag(s) in: {s}\nSupported format: {s}\n", .{ profile_flags, hint });
                 },
                 error.UnsupportedArch => {
@@ -75,7 +75,7 @@ pub fn build(b: *std.Build) void {
         break :blk isa_dispatch.formatCanonicalIsaId(b.allocator, arch, profile_flags) catch |e| {
             switch (e) {
                 error.UnknownFeature => {
-                    const hint = isa_dispatch.formatSupportedProfiles();
+                    const hint = isa_dispatch.formatSupportedProfiles(arch);
                     std.debug.print("Unknown feature flag(s) in: {s}\nSupported format: {s}\n", .{ profile_flags, hint });
                 },
                 error.UnsupportedArch => {

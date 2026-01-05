@@ -4,6 +4,17 @@ const naming = @import("naming.zig");
 const ux = @import("ux.zig");
 const riscv_family = @import("riscv/family.zig");
 
+/// NOTE:
+/// Runner configuration types are owned by `platform/dispatch/platform.zig` (platform dispatch),
+/// not by ISA dispatch.
+///
+/// Rationale:
+/// - Platform runners (qemu/spike/...) are implemented under `platform/*/build.zig` and can
+///   reliably import platform dispatch types.
+/// - Importing ISA dispatch types from platform build modules is fragile in build-context due to
+///   differing import roots.
+/// - Keeping `RunnerConfig` unified avoids type-mismatch issues across modules.
+
 // Submodules (responsibility split)
 pub const resolve = @import("dispatch/resolve.zig");
 pub const query = @import("dispatch/query.zig");

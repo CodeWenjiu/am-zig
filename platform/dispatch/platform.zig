@@ -16,7 +16,11 @@ pub const Platform = enum {
     // Per-platform implementations. These modules are expected to provide:
     // - entryModule(...)
     // - configureExecutable(...)
-    // - addPlatformSteps(b, feature_profile, exe_base_name, exe)
+    // - addPlatformSteps(...)
+    //
+    // Instead of plumbing runner config types through platform dispatch (which risks leaking
+    // ISA-family semantics upward), runners should be configured by platform implementations
+    // themselves, or via a comptime-injected provider at their call sites.
     const impls = [_]Impl{
         .{ .tag = .native, .module = native_build },
         .{ .tag = .nemu, .module = nemu_build },
@@ -138,6 +142,11 @@ const native_build = @import("../native/build.zig");
 const nemu_build = @import("../nemu/build.zig");
 const qemu_build = @import("../qemu/build.zig");
 const spike_build = @import("../spike/build.zig");
+
+pub fn missingArgExit(name: []const u8, placeholder: []const u8) noreturn {
+    std.debug.print("Missing required argument: -D{s}=<{s}>\n", .{ name, placeholder });
+    std.process.exit(1);
+}
 
 pub fn missingOptionExit(comptime T: type, name: []const u8) noreturn {
     std.debug.print("Missing required argument: -D{s}=<{s}>\n", .{ name, name });

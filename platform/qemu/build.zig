@@ -37,6 +37,45 @@ fn containsSubstring(flags: []const u8, substr: []const u8) bool {
     return std.mem.indexOf(u8, flags, substr) != null;
 }
 
+fn parseZvlBitsLowerBound(flags: []const u8) ?usize {
+    // Parse `zvl<NNN>b` from a feature profile string like "im_zve32x_zvl128b".
+    // Returns the numeric bit lower bound (e.g. 128), or null if not present.
+    //
+    // Multiple `zvl*` occurrences are invalid and will hard-fail, because they imply
+    // conflicting minimum VLEN requirements.
+    const prefix = "zvl";
+    const suffix = "b";
+
+    var found: ?usize = null;
+
+    var i: usize = 0;
+    while (i + prefix.len <= flags.len) : (i += 1) {
+        if (!std.mem.startsWith(u8, flags[i..], prefix)) continue;
+
+        var j = i + prefix.len;
+
+        // Must have at least 1 digit.
+        if (j >= flags.len or flags[j] < '0' or flags[j] > '9') continue;
+
+        var value: usize = 0;
+        while (j < flags.len) : (j += 1) {
+            const ch = flags[j];
+            if (ch < '0' or ch > '9') break;
+            value = value * 10 + @as(usize, ch - '0');
+        }
+
+        // Must end with trailing 'b'.
+        if (j < flags.len and std.mem.startsWith(u8, flags[j..], suffix)) {
+            if (found != null) {
+                std.debug.panic("Invalid feature profile: multiple zvl* occurrences in: {s}", .{flags});
+            }
+            found = value;
+        }
+    }
+
+    return found;
+}
+
 fn qemuCpuForFeatureFlags(allocator: std.mem.Allocator, flags: []const u8) []const u8 {
     const has_m = containsChar(flags, 'm');
     const has_a = containsChar(flags, 'a');
@@ -74,7 +113,10 @@ fn qemuCpuForFeatureFlags(allocator: std.mem.Allocator, flags: []const u8) []con
     if (has_zve) {
         parts[part_count] = "v=true";
         part_count += 1;
-        parts[part_count] = "vlen=128";
+
+        const vlen_bits = parseZvlBitsLowerBound(flags) orelse 128;
+        const vlen_opt = std.fmt.allocPrint(allocator, "vlen={d}", .{vlen_bits}) catch "vlen=128";
+        parts[part_count] = vlen_opt;
         part_count += 1;
     }
 

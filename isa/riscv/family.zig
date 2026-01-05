@@ -20,6 +20,10 @@ const ux = @import("ux.zig");
 ///   for parsing/UX defaults but Query construction may be extended as needed.
 pub const StripPreset = target.StripPreset;
 
+/// Profile info types for downstream consumers (e.g. platforms that need runtime CPU config).
+pub const ProfileInfo = target.ProfileInfo;
+pub const ProfileInfoError = target.ProfileInfoError;
+
 /// Errors surfaced by RISC-V family operations.
 pub const Error = error{
     UnsupportedArch,
@@ -50,9 +54,10 @@ pub fn defaultFeatureTags(arch: std.Target.Cpu.Arch) Error![]const []const u8 {
 /// Parse a raw profile string (e.g. "imac", "im_zve32x") into feature tags.
 ///
 /// Contract:
-/// - No arch prefix in the profile string.
-/// - Order-insensitive / separator-insensitive (as implemented by `target.parseFeatureTags`).
-/// - Returned slice is allocator-owned; caller must free it with the same allocator.
+/// - Returns an allocator-owned slice of valid tags for the given arch.
+/// - Unknown features return `error.UnknownFeature`.
+/// - Unsupported arch returns `error.UnsupportedArch`.
+/// - Allocation failures return `error.OutOfMemory`.
 pub fn parseFeatureTags(
     allocator: std.mem.Allocator,
     arch: std.Target.Cpu.Arch,
@@ -68,6 +73,22 @@ pub fn parseFeatureTags(
         error.OutOfMemory => return Error.OutOfMemory,
     };
     return tags;
+}
+
+/// Parse a raw profile string into structured info needed by platform runners.
+///
+/// This keeps profile semantics (e.g. "duplicate zvl is invalid") within the ISA family.
+pub fn parseProfileInfo(
+    allocator: std.mem.Allocator,
+    arch: std.Target.Cpu.Arch,
+    profile: []const u8,
+) ProfileInfoError!ProfileInfo {
+    switch (arch) {
+        .riscv32, .riscv64 => {},
+        else => return ProfileInfoError.UnsupportedArch,
+    }
+
+    return target.parseProfileInfo(allocator, profile);
 }
 
 /// Build a Target.Query from a profile string.

@@ -6,14 +6,29 @@ const isa_dispatch = @import("isa/dispatch.zig");
 const Platform = platform_lib.Platform;
 
 pub fn build(b: *std.Build) void {
-    const platform = b.option(Platform, "platform", "Select the platform") orelse platform_lib.missingOptionExit(Platform, "platform");
-    const arch_opt = b.option(std.Target.Cpu.Arch, "target", "Select CPU architecture (required for non-native, e.g. riscv32)");
-    const feature_opt = b.option([]const u8, "feature", "Optional feature flags without arch prefix (e.g. mac, imac, im_zve32x); defaults per arch");
-    const bin = b.option([]const u8, "bin", "Select the binary under bin/<name>/main.zig") orelse {
-        std.debug.print("Missing required argument: -Dbin=<name>\n", .{});
-        std.process.exit(1);
-    };
-    const arg = b.option([]const u8, "arg", "Optional argument string passed to bare-metal runtime via build options (space-delimited)");
+    const platform = b.option(Platform, "platform", "Select the platform") orelse
+        platform_lib.missingOptionExit(Platform, "platform");
+
+    const arch_opt = b.option(
+        std.Target.Cpu.Arch,
+        "target",
+        "Select CPU architecture (required for non-native, e.g. riscv32)",
+    );
+    const feature_opt = b.option(
+        []const u8,
+        "feature",
+        "Optional feature flags without arch prefix (e.g. mac, imac, im_zve32x); defaults per arch",
+    );
+    const bin = b.option(
+        []const u8,
+        "bin",
+        "Select the binary under bin/<name>/main.zig",
+    ) orelse platform_lib.missingArgExit("bin", "name");
+    const arg = b.option(
+        []const u8,
+        "arg",
+        "Optional argument string passed to bare-metal runtime via build options (space-delimited)",
+    );
 
     const is_native = platform == .native;
 
@@ -37,9 +52,11 @@ pub fn build(b: *std.Build) void {
                 error.UnknownFeature => {
                     const arch = arch_opt orelse unreachable;
                     const profile_flags = isa_dispatch.resolveFeatureProfileString(arch, feature_opt);
-
                     const hint = isa_dispatch.formatSupportedProfiles(arch);
-                    std.debug.print("Unknown feature flag(s) in: {s}\nSupported format: {s}\n", .{ profile_flags, hint });
+                    std.debug.print(
+                        "Unknown feature flag(s) in: {s}\nSupported format: {s}\n",
+                        .{ profile_flags, hint },
+                    );
                 },
                 error.UnsupportedArch => {
                     const arch = arch_opt orelse unreachable;
@@ -76,7 +93,10 @@ pub fn build(b: *std.Build) void {
             switch (e) {
                 error.UnknownFeature => {
                     const hint = isa_dispatch.formatSupportedProfiles(arch);
-                    std.debug.print("Unknown feature flag(s) in: {s}\nSupported format: {s}\n", .{ profile_flags, hint });
+                    std.debug.print(
+                        "Unknown feature flag(s) in: {s}\nSupported format: {s}\n",
+                        .{ profile_flags, hint },
+                    );
                 },
                 error.UnsupportedArch => {
                     std.debug.print("Unsupported architecture: {s}\n", .{@tagName(arch)});

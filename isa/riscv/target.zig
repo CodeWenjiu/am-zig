@@ -16,6 +16,94 @@ pub const StripPreset = enum {
     conservative,
 };
 
+pub const ProfileInfoError = error{
+    /// The requested architecture isn't supported by this ISA layer.
+    /// (Used by higher layers that route by arch; kept here for consistent error surfaces.)
+    UnsupportedArch,
+    /// Profile contained an unknown/unsupported feature tag.
+    UnknownFeature,
+    /// Allocation failed while parsing/processing the feature profile.
+    OutOfMemory,
+    /// Multiple `zvl*` occurrences were found (conflicting minimum VLEN requirements).
+    DuplicateZvl,
+};
+
+pub const ProfileInfo = struct {
+    /// Parsed feature tags (deduplicated, order preserved from first occurrence).
+    /// Caller owns this slice and must free it with the allocator used to create it.
+    tags: []const []const u8,
+
+    /// True if any zve* extension is present (e.g. zve32x/zve64d/...).
+    has_zve: bool,
+
+    /// If a `zvl<NNN>b` tag is present, this is the parsed bit lower bound.
+    /// Multiple zvl* tags are rejected as invalid.
+    zvl_bits: ?usize,
+
+    pub fn deinit(self: ProfileInfo, allocator: std.mem.Allocator) void {
+        allocator.free(self.tags);
+    }
+};
+
+fn parseZvlBitsFromTag(tag: []const u8) ?usize {
+    // tag must look like: "zvl<digits>b"
+    if (tag.len < 5) return null; // "zvl" + "0" + "b"
+    if (!std.mem.startsWith(u8, tag, "zvl")) return null;
+    if (tag[tag.len - 1] != 'b') return null;
+
+    var i: usize = 3; // after "zvl"
+    if (i >= tag.len - 1) return null;
+
+    var value: usize = 0;
+    var saw_digit = false;
+    while (i < tag.len - 1) : (i += 1) {
+        const ch = tag[i];
+        if (ch < '0' or ch > '9') return null;
+        saw_digit = true;
+        value = value * 10 + @as(usize, ch - '0');
+    }
+    if (!saw_digit) return null;
+    return value;
+}
+
+/// Parse a raw feature profile string (e.g. "im_zve32x_zvl128b") into:
+/// - deduplicated tags
+/// - whether zve* is present
+/// - optional zvl bits lower bound
+///
+/// This is intended to be the single source of truth for profile semantics, so
+/// downstream (platform) code doesn't need to re-parse strings.
+pub fn parseProfileInfo(
+    allocator: std.mem.Allocator,
+    profile: []const u8,
+) ProfileInfoError!ProfileInfo {
+    const tags = parseFeatureTags(allocator, profile) catch |e| switch (e) {
+        error.UnknownFeature => return ProfileInfoError.UnknownFeature,
+        error.OutOfMemory => return ProfileInfoError.OutOfMemory,
+    };
+
+    var has_zve = false;
+    var zvl_bits: ?usize = null;
+
+    for (tags) |tag| {
+        if (!has_zve and std.mem.startsWith(u8, tag, "zve")) has_zve = true;
+
+        if (parseZvlBitsFromTag(tag)) |bits| {
+            if (zvl_bits != null) {
+                allocator.free(tags);
+                return ProfileInfoError.DuplicateZvl;
+            }
+            zvl_bits = bits;
+        }
+    }
+
+    return .{
+        .tags = tags,
+        .has_zve = has_zve,
+        .zvl_bits = zvl_bits,
+    };
+}
+
 pub fn defaultFeatureTags(arch: std.Target.Cpu.Arch) []const []const u8 {
     return switch (arch) {
         .riscv32 => &.{"i"},

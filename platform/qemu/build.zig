@@ -2,22 +2,24 @@ const std = @import("std");
 
 pub fn entryModule(
     b: *std.Build,
+    feature_profile: ?[]const u8,
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
     app_mod: *std.Build.Module,
 ) *std.Build.Module {
+    _ = feature_profile;
     const entry_mod = b.createModule(.{
         .root_source_file = b.path("platform/qemu/runtime.zig"),
         .target = target,
         .optimize = optimize,
     });
-    const isa_riscv_start_pkg = b.createModule(.{
-        .root_source_file = b.path("isa/riscv/start.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
     entry_mod.addImport("app", app_mod);
-    entry_mod.addImport("isa_riscv_start", isa_riscv_start_pkg);
+
+    // NOTE:
+    // Do not hardcode the ISA start shim here. The top-level build injects
+    // the correct `isa_riscv_start` module based on arch/feature selection.
+    // (e.g. vector-enabled `_start` vs non-vector `_start`).
+
     return entry_mod;
 }
 

@@ -78,7 +78,46 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const entry_mod = platform.entryModule(b, target, optimize, app_mod);
+    const entry_mod = platform.entryModule(b, resolved.feature_profile, target, optimize, app_mod);
+
+    // Inject ISA-selected start shim into the entry module.
+    //
+    // ISA owns the semantics of feature profiles (via ProfileInfo); the selected
+    // start shim is provided as an import named `isa_riscv_start`.
+    //
+    // Platform remains responsible for validating platform support for the chosen
+    // ISA/profile combo (e.g. nemu may reject vector profiles).
+    if (!is_native) {
+        const arch = arch_opt orelse unreachable;
+
+        const start_path = isa_dispatch.startShimPathFor(b.allocator, arch, resolved.feature_profile) catch |e| {
+            switch (e) {
+                error.UnknownFeature => {
+                    const profile_flags = isa_dispatch.resolveFeatureProfileString(arch, feature_opt);
+                    const hint = isa_dispatch.formatSupportedProfiles(arch);
+                    std.debug.print(
+                        "Unknown feature flag(s) in: {s}\nSupported format: {s}\n",
+                        .{ profile_flags, hint },
+                    );
+                },
+                error.UnsupportedArch => {
+                    std.debug.print("Unsupported architecture: {s}\n", .{@tagName(arch)});
+                },
+                error.OutOfMemory => {
+                    std.debug.print("Out of memory while selecting ISA start shim\n", .{});
+                },
+                error.MissingTarget => unreachable,
+            }
+            std.process.exit(1);
+        };
+
+        const isa_start_mod = b.createModule(.{
+            .root_source_file = b.path(start_path),
+            .target = target,
+            .optimize = optimize,
+        });
+        entry_mod.addImport("isa_riscv_start", isa_start_mod);
+    }
 
     // Canonical ISA id for artifact naming:
     // - Non-native: "<arch>-<sorted_unique_features>"

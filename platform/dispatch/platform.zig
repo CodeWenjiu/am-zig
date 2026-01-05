@@ -14,13 +14,12 @@ pub const Platform = enum {
     };
 
     // Per-platform implementations. These modules are expected to provide:
-    // - entryModule(...)
+    // - entryModule(b, feature_profile, target, optimize, app_mod)
     // - configureExecutable(...)
     // - addPlatformSteps(...)
     //
-    // Instead of plumbing runner config types through platform dispatch (which risks leaking
-    // ISA-family semantics upward), runners should be configured by platform implementations
-    // themselves, or via a comptime-injected provider at their call sites.
+    // Platform dispatch stays ISA-agnostic: it simply forwards the already-resolved
+    // feature profile from the top-level build to the platform implementation.
     const impls = [_]Impl{
         .{ .tag = .native, .module = native_build },
         .{ .tag = .nemu, .module = nemu_build },
@@ -38,21 +37,29 @@ pub const Platform = enum {
     pub fn entryModule(
         self: Platform,
         b: *std.Build,
+        feature_profile: ?[]const u8,
         target: std.Build.ResolvedTarget,
         optimize: std.builtin.OptimizeMode,
         app_mod: *std.Build.Module,
     ) *std.Build.Module {
         const Ctx = struct {
             b: *std.Build,
+            feature_profile: ?[]const u8,
             target: std.Build.ResolvedTarget,
             optimize: std.builtin.OptimizeMode,
             app_mod: *std.Build.Module,
         };
-        const ctx: Ctx = .{ .b = b, .target = target, .optimize = optimize, .app_mod = app_mod };
+        const ctx: Ctx = .{
+            .b = b,
+            .feature_profile = feature_profile,
+            .target = target,
+            .optimize = optimize,
+            .app_mod = app_mod,
+        };
 
         return self.withImpl(*std.Build.Module, ctx, struct {
             fn call(comptime M: type, c: Ctx) *std.Build.Module {
-                return M.entryModule(c.b, c.target, c.optimize, c.app_mod);
+                return M.entryModule(c.b, c.feature_profile, c.target, c.optimize, c.app_mod);
             }
         }.call);
     }

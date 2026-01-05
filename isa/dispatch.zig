@@ -49,6 +49,43 @@ pub const QueryError = query.Error;
 pub const targetQueryFromProfile = query.targetQueryFromProfile;
 pub const targetQueryFromTags = query.targetQueryFromTags;
 
+/// Select the ISA start shim source path for the given arch + resolved feature profile.
+///
+/// Contract:
+/// - ISA decides *how to interpret* the feature profile (ProfileInfo semantics).
+/// - Platform remains responsible for deciding whether the chosen ISA/profile combination is
+///   supported (e.g. nemu may reject vectors), and for reporting errors accordingly.
+///
+/// Today this only has meaning for RISC-V; other arches return the default path.
+pub fn startShimPathFor(
+    allocator: std.mem.Allocator,
+    arch: std.Target.Cpu.Arch,
+    feature_profile: ?[]const u8,
+) TargetQueryError![]const u8 {
+    // Default: use the minimal start shim.
+    const default_path = "isa/riscv/start.zig";
+
+    // No profile => default start shim.
+    const profile = feature_profile orelse return default_path;
+
+    return switch (arch) {
+        .riscv32, .riscv64 => blk: {
+            const info = riscv_family.parseProfileInfo(allocator, arch, profile) catch |e| switch (e) {
+                error.UnsupportedArch => return TargetQueryError.UnsupportedArch,
+                error.UnknownFeature => return TargetQueryError.UnknownFeature,
+                error.OutOfMemory => return TargetQueryError.OutOfMemory,
+                // Treat DuplicateZvl as "unknown feature/profile invalid" at this layer.
+                error.DuplicateZvl => return TargetQueryError.UnknownFeature,
+            };
+            defer info.deinit(allocator);
+
+            if (info.has_zve) break :blk "isa/riscv/start_vector.zig";
+            break :blk default_path;
+        },
+        else => default_path,
+    };
+}
+
 // Naming helpers.
 pub fn formatCanonicalIsaId(
     allocator: std.mem.Allocator,

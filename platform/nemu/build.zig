@@ -1,24 +1,22 @@
 const std = @import("std");
 
-/// Create the entry module for NEMU: wires app runtime and ISA start shim.
+/// Create the entry module for NEMU: wires app runtime (ISA start shim is injected by the top-level build).
 pub fn entryModule(
     b: *std.Build,
+    feature_profile: ?[]const u8,
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
     app_mod: *std.Build.Module,
 ) *std.Build.Module {
+    _ = feature_profile;
+
     const entry_mod = b.createModule(.{
         .root_source_file = b.path("platform/nemu/runtime.zig"),
         .target = target,
         .optimize = optimize,
     });
-    const isa_riscv_start = b.createModule(.{
-        .root_source_file = b.path("isa/riscv/start.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
+
     entry_mod.addImport("app", app_mod);
-    entry_mod.addImport("isa_riscv_start", isa_riscv_start);
     return entry_mod;
 }
 

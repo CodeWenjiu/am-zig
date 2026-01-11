@@ -41,10 +41,10 @@ fn stdoutPrint(comptime fmt: []const u8, args: anytype) !void {
     var buf: [1024]u8 = undefined;
     const msg = try std.fmt.bufPrint(&buf, fmt, args);
 
-    const writer = if (@hasDecl(@import("root"), "getStdOut"))
-        @import("root").getStdOut()
-    else
-        std.fs.File.stdout().writer();
-
-    try writer.writeAll(msg);
+    if (@hasDecl(@import("root"), "getStdOut")) {
+        const writer = @import("root").getStdOut();
+        try writer.writeAll(msg);
+    } else {
+        try std.fs.File.stdout().writeAll(msg);
+    }
 }

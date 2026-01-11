@@ -42,12 +42,12 @@ fn stdoutPrint(comptime fmt: []const u8, args: anytype) void {
 
     const msg = std.fmt.bufPrint(&buf, fmt, args) catch return;
 
-    const writer = if (@hasDecl(@import("root"), "getStdOut"))
-        @import("root").getStdOut()
-    else
-        std.fs.File.stdout().writer();
-
-    writer.writeAll(msg) catch {};
+    if (@hasDecl(@import("root"), "getStdOut")) {
+        const writer = @import("root").getStdOut();
+        writer.writeAll(msg) catch {};
+    } else {
+        std.fs.File.stdout().writeAll(msg) catch {};
+    }
 }
 
 /// Convert float scale to Q16 fixed-point

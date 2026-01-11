@@ -4,6 +4,15 @@ const uart = @import("uart.zig");
 const build_options = @import("build_options");
 const argv_util = @import("argv");
 
+pub const std_options: std.Options = .{
+    .logFn = uartLogFn,
+    .log_level = .info,
+
+    // Zig 0.15 requires this for freestanding targets if you use allocators that depend on page sizing.
+    // A conservative value for most bare-metal/simulator environments.
+    .page_size_max = 4096,
+};
+
 // ISA abstraction layer
 // In a real scenario, this could be selected via build options
 const isa_riscv_start = @import("isa_riscv_start");
@@ -12,11 +21,6 @@ const isa_riscv_start = @import("isa_riscv_start");
 comptime {
     _ = isa_riscv_start;
 }
-
-pub const std_options: std.Options = .{
-    .logFn = uartLogFn,
-    .log_level = .info,
-};
 
 fn uartLogFn(
     comptime level: std.log.Level,

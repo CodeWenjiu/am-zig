@@ -39,6 +39,11 @@ fn containsSubstring(flags: []const u8, substr: []const u8) bool {
     return std.mem.indexOf(u8, flags, substr) != null;
 }
 
+fn hasVectorFlag(flags: []const u8) bool {
+    if (containsChar(flags, 'v')) return true;
+    return containsSubstring(flags, "zv");
+}
+
 fn parseZvlBitsLowerBound(flags: []const u8) ?usize {
     // Parse `zvl<NNN>b` from a feature profile string like "im_zve32x_zvl128b".
     // Returns the numeric bit lower bound (e.g. 128), or null if not present.
@@ -84,7 +89,7 @@ fn qemuCpuForFeatureFlags(allocator: std.mem.Allocator, flags: []const u8) []con
     const has_f = containsChar(flags, 'f');
     const has_d = containsChar(flags, 'd');
     const has_c = containsChar(flags, 'c');
-    const has_zve = containsSubstring(flags, "zve");
+    const has_vector = hasVectorFlag(flags);
 
     var parts: [8][]const u8 = undefined;
     var part_count: usize = 0;
@@ -112,7 +117,7 @@ fn qemuCpuForFeatureFlags(allocator: std.mem.Allocator, flags: []const u8) []con
         parts[part_count] = "c=true";
         part_count += 1;
     }
-    if (has_zve) {
+    if (has_vector) {
         parts[part_count] = "v=true";
         part_count += 1;
 

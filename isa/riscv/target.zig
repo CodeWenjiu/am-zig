@@ -33,6 +33,9 @@ pub const ProfileInfo = struct {
     /// Caller owns this slice and must free it with the allocator used to create it.
     tags: []const []const u8,
 
+    /// True if any vector extension is present (base `v` or any `zv*`, including zve).
+    has_vector: bool,
+
     /// True if any zve* extension is present (e.g. zve32x/zve64d/...).
     has_zve: bool,
 
@@ -82,10 +85,14 @@ pub fn parseProfileInfo(
         error.OutOfMemory => return ProfileInfoError.OutOfMemory,
     };
 
+    var has_vector = false;
     var has_zve = false;
     var zvl_bits: ?usize = null;
 
     for (tags) |tag| {
+        if (!has_vector and ((tag.len == 1 and tag[0] == 'v') or std.mem.startsWith(u8, tag, "zv"))) {
+            has_vector = true;
+        }
         if (!has_zve and std.mem.startsWith(u8, tag, "zve")) has_zve = true;
 
         if (parseZvlBitsFromTag(tag)) |bits| {
@@ -99,6 +106,7 @@ pub fn parseProfileInfo(
 
     return .{
         .tags = tags,
+        .has_vector = has_vector,
         .has_zve = has_zve,
         .zvl_bits = zvl_bits,
     };

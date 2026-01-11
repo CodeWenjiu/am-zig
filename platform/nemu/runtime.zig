@@ -9,6 +9,10 @@ const argv_util = @import("argv");
 const isa_riscv_start = @import("isa_riscv_start");
 
 pub const std_options: std.Options = .{
+    // Zig stdlib requires an explicit page size maximum on freestanding targets
+    // before certain heap allocators can be used.
+    .page_size_max = 4096,
+
     .logFn = uartLogFn,
     .log_level = .info,
 };

@@ -18,6 +18,11 @@ comptime {
 pub const std_options: std.Options = .{
     .logFn = uartLogFn,
     .log_level = .info,
+
+    // Zig stdlib requires an explicit page size bound for freestanding targets
+    // when using allocators that depend on page sizing (e.g. GPA/debug allocator).
+    // QEMU virt typically uses 4 KiB pages; set a conservative max here.
+    .page_size_max = 4096,
 };
 
 fn uartLogFn(

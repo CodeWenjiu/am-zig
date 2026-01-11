@@ -5,6 +5,16 @@ const isa_dispatch = @import("isa/dispatch.zig");
 
 const Platform = platform_lib.Platform;
 
+fn maybeAddBinHookStep(b: *std.Build, bin: []const u8) ?*std.Build.Step {
+    const hook_rel = b.pathJoin(&.{ "bin", bin, "build.zig" });
+    std.fs.cwd().access(hook_rel, .{}) catch return null;
+
+    // Convention: if bin/<name>/build.zig exists, we run it via `zig run` before compiling the bin.
+    // The hook script can generate assets or perform other pre-build tasks for that bin.
+    const hook_cmd = b.addSystemCommand(&.{ "zig", "run", hook_rel });
+    return &hook_cmd.step;
+}
+
 pub fn build(b: *std.Build) void {
     const platform = b.option(Platform, "platform", "Select the platform") orelse
         platform_lib.missingOptionExit(Platform, "platform");
@@ -157,6 +167,10 @@ pub fn build(b: *std.Build) void {
         .name = exe_name,
         .root_module = entry_mod,
     });
+
+    if (maybeAddBinHookStep(b, bin)) |hook_step| {
+        exe.step.dependOn(hook_step);
+    }
 
     platform.configureExecutable(b, exe);
     platform.addPlatformSteps(b, resolved.feature_profile, exe_name, exe);

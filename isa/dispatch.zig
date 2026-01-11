@@ -79,7 +79,7 @@ pub fn startShimPathFor(
             };
             defer info.deinit(allocator);
 
-            if (info.has_zve) break :blk "isa/riscv/start_vector.zig";
+            if (info.has_vector) break :blk "isa/riscv/start_vector.zig";
             break :blk default_path;
         },
         else => default_path,

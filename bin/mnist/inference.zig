@@ -25,10 +25,10 @@ const std = @import("std");
 ///
 /// Weight binaries are expected to be embedded via `weights.zig` (generated at build time),
 /// so we don't rely on `@embedFile` paths (which are fragile in multi-root builds).
-const embedded_images = @import("embedded_images.zig");
+const embedded_images = @import("generated/embedded_images.zig");
 pub const EMBEDDED_TEST_IMAGES = embedded_images.EMBEDDED_TEST_IMAGES;
 
-const weights_mod = @import("weights.zig");
+const weights_mod = @import("generated/weights.zig");
 
 // Benchmark configuration (mirrors Rust constants)
 pub const BENCHMARK_ITERATIONS: usize = 1000;

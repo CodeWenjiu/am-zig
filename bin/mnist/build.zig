@@ -25,23 +25,23 @@ pub fn main() !void {
     const gen_images = &[_][]const u8{
         "zig",
         "run",
-        "bin/mnist/gen_embedded_images.zig",
+        "bin/mnist/build_tools/gen_embedded_images.zig",
         "--",
         "--input-dir",
         "bin/mnist/test_images",
         "--output",
-        "bin/mnist/embedded_images.zig",
+        "bin/mnist/generated/embedded_images.zig",
     };
 
     const gen_weights = &[_][]const u8{
         "zig",
         "run",
-        "bin/mnist/gen_weights.zig",
+        "bin/mnist/build_tools/gen_weights.zig",
         "--",
         "--input-dir",
         "bin/mnist/binarys",
         "--output",
-        "bin/mnist/weights.zig",
+        "bin/mnist/generated/weights.zig",
     };
 
     std.log.info("mnist hook: generating embedded images...", .{});

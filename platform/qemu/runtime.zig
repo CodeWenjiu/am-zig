@@ -3,6 +3,9 @@ const app = @import("app");
 const uart = @import("uart.zig");
 const build_options = @import("build_options");
 const argv_util = @import("argv");
+const uart_dev = @import("uart_dev");
+
+const uart_hw = uart_dev.Uart16550{ .base = 0x1000_0000 };
 
 // ISA abstraction layer
 
@@ -24,6 +27,14 @@ pub const std_options: std.Options = .{
     // QEMU virt typically uses 4 KiB pages; set a conservative max here.
     .page_size_max = 4096,
 };
+
+pub fn getStdOut() uart_dev.UartStdIo.Writer {
+    return uart_dev.UartStdIo.stdoutWriter(&uart_hw);
+}
+
+pub fn getStdErr() uart_dev.UartStdIo.Writer {
+    return uart_dev.UartStdIo.stderrWriter(&uart_hw);
+}
 
 fn uartLogFn(
     comptime level: std.log.Level,

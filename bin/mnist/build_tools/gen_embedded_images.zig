@@ -149,7 +149,7 @@ fn parseArgs(_: std.mem.Allocator, args: []const []const u8) !Options {
             // Only if not already overridden.
             if (std.mem.eql(u8, input_dir, "bin/mnist/test_images")) {
                 input_dir = a;
-            } else if (std.mem.eql(u8, output_path, "bin/mnist/embedded_images.zig")) {
+            } else if (std.mem.eql(u8, output_path, "bin/mnist/generated/embedded_images.zig")) {
                 output_path = a;
             } else {
                 return error.InvalidArguments;
@@ -171,7 +171,7 @@ fn printHelpAndExit() noreturn {
         \\  --input-dir <dir>   Directory containing *.bin test images
         \\                      (default: bin/mnist/test_images)
         \\  --output <file>     Output Zig file path
-        \\                      (default: bin/mnist/embedded_images.zig)
+        \\                      (default: bin/mnist/generated/embedded_images.zig)
         \\  -h, --help          Show this help
         \\
     , .{});

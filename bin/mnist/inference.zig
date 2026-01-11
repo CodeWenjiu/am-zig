@@ -3,8 +3,8 @@ const std = @import("std");
 /// MNIST INT8 inference + benchmarking (Zig translation of the provided Rust code).
 ///
 /// Notes / assumptions:
-/// - This module is self-contained and does not print via UART-specific mechanisms.
-///   It uses `std.log` which should route to your existing platform log hook.
+/// - This module is self-contained and prints via stdout/stdio (platform should route to UART).
+///   Avoids `std.log` to exercise the stdio path end-to-end.
 ///
 /// - Weight binaries are expected at:
 ///   - `bin/mnist/binarys/fc1_weight.bin`
@@ -36,6 +36,19 @@ pub const WARMUP_ITERATIONS: usize = 100;
 pub const DETAILED_BENCHMARK_ITERATIONS: usize = 100;
 
 pub const Q16_SHIFT: u5 = 16;
+
+fn stdoutPrint(comptime fmt: []const u8, args: anytype) void {
+    var buf: [1024]u8 = undefined;
+
+    const msg = std.fmt.bufPrint(&buf, fmt, args) catch return;
+
+    const writer = if (@hasDecl(@import("root"), "getStdOut"))
+        @import("root").getStdOut()
+    else
+        std.fs.File.stdout().writer();
+
+    writer.writeAll(msg) catch {};
+}
 
 /// Convert float scale to Q16 fixed-point
 fn scaleToQ16(scale: f32) i32 {
@@ -72,19 +85,19 @@ pub const Inference = struct {
         const fc2_scale = fc2_parsed.scale;
         const fc3_scale = fc3_parsed.scale;
 
-        std.log.info("Model weights loaded successfully!\n", .{});
-        std.log.info("FC1: {d}x{d}, scale: {d:.6}\n", .{ fc1_weights.len, fc1_weights[0].len, fc1_scale });
-        std.log.info("FC2: {d}x{d}, scale: {d:.6}\n", .{ fc2_weights.len, fc2_weights[0].len, fc2_scale });
-        std.log.info("FC3: {d}x{d}, scale: {d:.6}\n\n", .{ fc3_weights.len, fc3_weights[0].len, fc3_scale });
+        stdoutPrint("Model weights loaded successfully!\n", .{});
+        stdoutPrint("FC1: {d}x{d}, scale: {d:.6}\n", .{ fc1_weights.len, fc1_weights[0].len, fc1_scale });
+        stdoutPrint("FC2: {d}x{d}, scale: {d:.6}\n", .{ fc2_weights.len, fc2_weights[0].len, fc2_scale });
+        stdoutPrint("FC3: {d}x{d}, scale: {d:.6}\n\n", .{ fc3_weights.len, fc3_weights[0].len, fc3_scale });
 
         const fc1_scale_q16 = scaleToQ16(fc1_scale);
         const fc2_scale_q16 = scaleToQ16(fc2_scale);
         const fc3_scale_q16 = scaleToQ16(fc3_scale);
 
-        std.log.info("Quantization Scales (Fixed Point):\n", .{});
-        std.log.info("  FC1_SCALE: {d:.6} -> Q16: {d}\n", .{ fc1_scale, fc1_scale_q16 });
-        std.log.info("  FC2_SCALE: {d:.6} -> Q16: {d}\n", .{ fc2_scale, fc2_scale_q16 });
-        std.log.info("  FC3_SCALE: {d:.6} -> Q16: {d}\n\n", .{ fc3_scale, fc3_scale_q16 });
+        stdoutPrint("Quantization Scales (Fixed Point):\n", .{});
+        stdoutPrint("  FC1_SCALE: {d:.6} -> Q16: {d}\n", .{ fc1_scale, fc1_scale_q16 });
+        stdoutPrint("  FC2_SCALE: {d:.6} -> Q16: {d}\n", .{ fc2_scale, fc2_scale_q16 });
+        stdoutPrint("  FC3_SCALE: {d:.6} -> Q16: {d}\n\n", .{ fc3_scale, fc3_scale_q16 });
 
         return .{
             .fc1_weights = fc1_weights,
@@ -141,50 +154,50 @@ pub const Inference = struct {
 
         var idx: usize = 0;
         while (idx < total_images) : (idx += 1) {
-            std.log.info("=== Test Image {d} ===", .{idx + 1});
+            stdoutPrint("=== Test Image {d} ===\n", .{idx + 1});
 
             const parsed = try parseImageBinary(allocator, test_images_data[idx]);
             defer allocator.free(parsed.image);
 
-            std.log.info("True label: {d}", .{parsed.label});
+            stdoutPrint("True label: {d}\n", .{parsed.label});
 
             const predicted = try self.mnistInferencePureInt8(allocator, parsed.image);
-            std.log.info("Predicted:  {d}", .{predicted});
+            stdoutPrint("Predicted:  {d}\n", .{predicted});
 
             if (predicted == parsed.label) {
-                std.log.info("✓ CORRECT PREDICTION!", .{});
+                stdoutPrint("✓ CORRECT PREDICTION!\n", .{});
                 correct += 1;
             } else {
-                std.log.info("✗ WRONG PREDICTION!", .{});
+                stdoutPrint("✗ WRONG PREDICTION!\n", .{});
             }
         }
 
-        std.log.info("=== FINAL RESULTS ===", .{});
-        std.log.info("Total images: {d}", .{total_images});
-        std.log.info("Correct predictions: {d}", .{correct});
+        stdoutPrint("=== FINAL RESULTS ===\n", .{});
+        stdoutPrint("Total images: {d}\n", .{total_images});
+        stdoutPrint("Correct predictions: {d}\n", .{correct});
         const acc = if (total_images == 0) 0.0 else (@as(f32, @floatFromInt(correct)) / @as(f32, @floatFromInt(total_images))) * 100.0;
-        std.log.info("Accuracy: {d:.2}%", .{acc});
+        stdoutPrint("Accuracy: {d:.2}%\n", .{acc});
     }
 
     /// Benchmark full inference loop with cycle counting.
     pub fn runBenchmark(self: *const Inference, allocator: std.mem.Allocator) !void {
-        std.log.info("=== BENCHMARK MODE ===", .{});
-        std.log.info("Warmup iterations: {d}", .{WARMUP_ITERATIONS});
-        std.log.info("Benchmark iterations: {d}", .{BENCHMARK_ITERATIONS});
+        stdoutPrint("=== BENCHMARK MODE ===\n", .{});
+        stdoutPrint("Warmup iterations: {d}\n", .{WARMUP_ITERATIONS});
+        stdoutPrint("Benchmark iterations: {d}\n", .{BENCHMARK_ITERATIONS});
 
         if (EMBEDDED_TEST_IMAGES.len == 0) return error.NoTestImages;
 
         const parsed = try parseImageBinary(allocator, EMBEDDED_TEST_IMAGES[0]);
         defer allocator.free(parsed.image);
 
-        std.log.info("Running warmup...\n", .{});
+        stdoutPrint("Running warmup...\n", .{});
 
         var i: usize = 0;
         while (i < WARMUP_ITERATIONS) : (i += 1) {
             _ = try self.mnistInferencePureInt8(allocator, parsed.image);
         }
 
-        std.log.info("Running benchmark with cycle counting...\n", .{});
+        stdoutPrint("Running benchmark with cycle counting...\n", .{});
 
         const start_cycles = readCycleCounter();
         i = 0;
@@ -203,47 +216,47 @@ pub const Inference = struct {
         else
             0;
 
-        std.log.info("=== BENCHMARK RESULTS ===\n", .{});
+        stdoutPrint("=== BENCHMARK RESULTS ===\n", .{});
 
-        std.log.info("Total cycles measured: {d}\n", .{total_cycles});
+        stdoutPrint("Total cycles measured: {d}\n", .{total_cycles});
 
-        std.log.info("Iterations completed: {d}\n", .{BENCHMARK_ITERATIONS});
+        stdoutPrint("Iterations completed: {d}\n", .{BENCHMARK_ITERATIONS});
 
-        std.log.info("Cycles per inference: {d}\n", .{cycles_per_inference});
+        stdoutPrint("Cycles per inference: {d}\n", .{cycles_per_inference});
 
-        std.log.info("Inferences per second (1GHz): {d}\n", .{inferences_per_second});
+        stdoutPrint("Inferences per second (1GHz): {d}\n", .{inferences_per_second});
 
-        std.log.info("Performance classification:\n", .{});
+        stdoutPrint("Performance classification:\n", .{});
 
         if (cycles_per_inference < 100_000) {
-            std.log.info("Excellent performance\n", .{});
+            stdoutPrint("Excellent performance\n", .{});
         } else if (cycles_per_inference < 500_000) {
-            std.log.info("Good performance\n", .{});
+            stdoutPrint("Good performance\n", .{});
         } else if (cycles_per_inference < 2_000_000) {
-            std.log.info("Moderate performance\n", .{});
+            stdoutPrint("Moderate performance\n", .{});
         } else {
-            std.log.info("Needs optimization\n", .{});
+            stdoutPrint("Needs optimization\n", .{});
         }
 
         const total_mac_operations: u64 = @as(u64, BENCHMARK_ITERATIONS) * (@as(u64, (784 * 256) + (256 * 128) + (128 * 10)));
         const macs_per_cycle: f64 = if (total_cycles > 0) @as(f64, @floatFromInt(total_mac_operations)) / @as(f64, @floatFromInt(total_cycles)) else 0.0;
 
-        std.log.info("Total MAC operations: {d}\n", .{total_mac_operations});
+        stdoutPrint("Total MAC operations: {d}\n", .{total_mac_operations});
 
-        std.log.info("MACs per cycle: {d:.4}\n", .{macs_per_cycle});
+        stdoutPrint("MACs per cycle: {d:.4}\n", .{macs_per_cycle});
 
-        std.log.info("Note: Higher MACs/cycle indicates better vectorization\n", .{});
+        stdoutPrint("Note: Higher MACs/cycle indicates better vectorization\n", .{});
 
         if (BENCHMARK_ITERATIONS > 0) {
-            std.log.info("Benchmark completed successfully\n", .{});
+            stdoutPrint("Benchmark completed successfully\n", .{});
         }
 
-        std.log.info("Use this as baseline for optimization comparisons\n", .{});
+        stdoutPrint("Use this as baseline for optimization comparisons\n", .{});
     }
 
     /// Detailed timing of major components (mirrors the Rust detailed analysis).
     pub fn detailedPerformanceAnalysis(self: *const Inference, allocator: std.mem.Allocator) !void {
-        std.log.info("=== DETAILED PERFORMANCE ANALYSIS ===", .{});
+        stdoutPrint("=== DETAILED PERFORMANCE ANALYSIS ===\n", .{});
 
         if (EMBEDDED_TEST_IMAGES.len == 0) return error.NoTestImages;
 
@@ -264,7 +277,7 @@ pub const Inference = struct {
         }
         var end = readCycleCounter();
         const norm_cycles: u64 = @intCast((end - start) / DETAILED_BENCHMARK_ITERATIONS);
-        std.log.info("normalize_input_pure_int8: {d} cycles/call", .{norm_cycles});
+        stdoutPrint("normalize_input_pure_int8: {d} cycles/call\n", .{norm_cycles});
         total_cycles += norm_cycles;
 
         // fc1 matmul
@@ -276,7 +289,7 @@ pub const Inference = struct {
         }
         end = readCycleCounter();
         const fc1_cycles: u64 = @intCast((end - start) / DETAILED_BENCHMARK_ITERATIONS);
-        std.log.info("FC1 matmul (256x784): {d} cycles/call", .{fc1_cycles});
+        stdoutPrint("FC1 matmul (256x784): {d} cycles/call\n", .{fc1_cycles});
         total_cycles += fc1_cycles;
 
         const fc1_output = try int8MatmulSymmetric(allocator, 256, 784, &self.fc1_weights, normalized_input, self.fc1_scale_q16);
@@ -291,7 +304,7 @@ pub const Inference = struct {
         }
         end = readCycleCounter();
         const scale_cycles: u64 = @intCast((end - start) / DETAILED_BENCHMARK_ITERATIONS);
-        std.log.info("int32_to_int8_with_scaling: {d} cycles/call", .{scale_cycles});
+        stdoutPrint("int32_to_int8_with_scaling: {d} cycles/call\n", .{scale_cycles});
         total_cycles += scale_cycles;
 
         // relu
@@ -305,21 +318,21 @@ pub const Inference = struct {
         }
         end = readCycleCounter();
         const relu_cycles: u64 = @intCast((end - start) / DETAILED_BENCHMARK_ITERATIONS);
-        std.log.info("relu6_int8: {d} cycles/call", .{relu_cycles});
+        stdoutPrint("relu6_int8: {d} cycles/call\n", .{relu_cycles});
         total_cycles += relu_cycles;
 
-        std.log.info("Estimated total cycles per inference: {d}\n", .{total_cycles});
+        stdoutPrint("Estimated total cycles per inference: {d}\n", .{total_cycles});
 
-        std.log.info("Breakdown:\n", .{});
+        stdoutPrint("Breakdown:\n", .{});
 
         if (total_cycles > 0) {
-            std.log.info("  - Input normalization: {d:.1}%\n", .{@as(f64, @floatFromInt(norm_cycles * 100)) / @as(f64, @floatFromInt(total_cycles))});
+            stdoutPrint("  - Input normalization: {d:.1}%\n", .{@as(f64, @floatFromInt(norm_cycles * 100)) / @as(f64, @floatFromInt(total_cycles))});
 
-            std.log.info("  - FC1 matmul: {d:.1}%\n", .{@as(f64, @floatFromInt(fc1_cycles * 100)) / @as(f64, @floatFromInt(total_cycles))});
+            stdoutPrint("  - FC1 matmul: {d:.1}%\n", .{@as(f64, @floatFromInt(fc1_cycles * 100)) / @as(f64, @floatFromInt(total_cycles))});
 
-            std.log.info("  - Scaling: {d:.1}%\n", .{@as(f64, @floatFromInt(scale_cycles * 100)) / @as(f64, @floatFromInt(total_cycles))});
+            stdoutPrint("  - Scaling: {d:.1}%\n", .{@as(f64, @floatFromInt(scale_cycles * 100)) / @as(f64, @floatFromInt(total_cycles))});
 
-            std.log.info("  - Activation: {d:.1}%\n", .{@as(f64, @floatFromInt(relu_cycles * 100)) / @as(f64, @floatFromInt(total_cycles))});
+            stdoutPrint("  - Activation: {d:.1}%\n", .{@as(f64, @floatFromInt(relu_cycles * 100)) / @as(f64, @floatFromInt(total_cycles))});
         }
     }
 };

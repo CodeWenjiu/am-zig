@@ -17,6 +17,15 @@ pub fn entryModule(
     });
 
     entry_mod.addImport("app", app_mod);
+
+    // Expose shared 16550 UART driver as a package for platform runtimes.
+    const uart_dev_pkg = b.createModule(.{
+        .root_source_file = b.path("platform/device/uart16550.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    entry_mod.addImport("uart_dev", uart_dev_pkg);
+
     return entry_mod;
 }
 

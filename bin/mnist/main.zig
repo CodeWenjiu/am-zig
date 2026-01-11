@@ -21,18 +21,30 @@ pub fn main() !void {
     const infer = Inference.init();
 
     if (BENCHMARK_ONLY_MODE) {
-        std.log.info("=== BENCHMARK-ONLY MODE ===", .{});
+        try stdoutPrint("=== BENCHMARK-ONLY MODE ===\n", .{});
 
         try infer.detailedPerformanceAnalysis(allocator);
-        std.log.info("", .{});
+        try stdoutPrint("\n", .{});
 
         try infer.runBenchmark(allocator);
         return;
     }
 
-    std.log.info("=== QUICK BENCHMARK ===", .{});
+    try stdoutPrint("=== QUICK BENCHMARK ===\n", .{});
     try infer.runBenchmark(allocator);
-    std.log.info("", .{});
+    try stdoutPrint("\n", .{});
 
     try infer.runTests(allocator);
+}
+
+fn stdoutPrint(comptime fmt: []const u8, args: anytype) !void {
+    var buf: [1024]u8 = undefined;
+    const msg = try std.fmt.bufPrint(&buf, fmt, args);
+
+    const writer = if (@hasDecl(@import("root"), "getStdOut"))
+        @import("root").getStdOut()
+    else
+        std.fs.File.stdout().writer();
+
+    try writer.writeAll(msg);
 }

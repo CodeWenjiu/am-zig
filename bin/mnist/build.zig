@@ -44,11 +44,11 @@ pub fn main() !void {
         "bin/mnist/generated/weights.zig",
     };
 
-    std.log.info("mnist hook: generating embedded images...", .{});
+    std.debug.print("mnist hook: generating embedded images...\n", .{});
     try runCmd(alloc, gen_images);
 
-    std.log.info("mnist hook: generating weights...", .{});
+    std.debug.print("mnist hook: generating weights...\n", .{});
     try runCmd(alloc, gen_weights);
 
-    std.log.info("mnist hook: done", .{});
+    std.debug.print("mnist hook: done\n", .{});
 }

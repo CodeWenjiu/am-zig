@@ -7,6 +7,7 @@ pub const Platform = enum {
     nemu,
     qemu,
     spike,
+    remu,
 
     const Impl = struct {
         tag: Platform,
@@ -25,6 +26,7 @@ pub const Platform = enum {
         .{ .tag = .nemu, .module = nemu_build },
         .{ .tag = .qemu, .module = qemu_build },
         .{ .tag = .spike, .module = spike_build },
+        .{ .tag = .remu, .module = remu_build },
     };
 
     fn withImpl(self: Platform, comptime Ret: type, ctx: anytype, comptime f: anytype) Ret {
@@ -149,6 +151,7 @@ const native_build = @import("../native/build.zig");
 const nemu_build = @import("../nemu/build.zig");
 const qemu_build = @import("../qemu/build.zig");
 const spike_build = @import("../spike/build.zig");
+const remu_build = @import("../remu/build.zig");
 
 pub fn missingArgExit(name: []const u8, placeholder: []const u8) noreturn {
     std.debug.print("Missing required argument: -D{s}=<{s}>\n", .{ name, placeholder });

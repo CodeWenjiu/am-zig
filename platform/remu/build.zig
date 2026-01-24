@@ -9,7 +9,7 @@ pub fn entryModule(
 ) *std.Build.Module {
     _ = feature_profile;
     const entry_mod = b.createModule(.{
-        .root_source_file = b.path("platform/qemu/runtime.zig"),
+        .root_source_file = b.path("platform/remu/runtime.zig"),
         .target = target,
         .optimize = optimize,
     });
@@ -91,103 +91,64 @@ fn parseZvlBitsLowerBound(flags: []const u8) ?usize {
     return found;
 }
 
-fn qemuCpuForFeatureFlags(allocator: std.mem.Allocator, flags: []const u8) []const u8 {
-    const has_m = containsChar(flags, 'm');
-    const has_a = containsChar(flags, 'a');
-    const has_f = containsChar(flags, 'f');
-    const has_d = containsChar(flags, 'd');
-    const has_c = containsChar(flags, 'c');
-    const has_vector = hasVectorFlag(flags);
+fn remuCpuForFeatureFlags(allocator: std.mem.Allocator, flags: []const u8) []const u8 {
+    // Start with the base ISA
+    var isa = allocator.dupe(u8, "riscv32") catch return "rv32";
 
-    var parts: [8][]const u8 = undefined;
-    var part_count: usize = 0;
-
-    parts[part_count] = "rv32";
-    part_count += 1;
-
-    if (has_m) {
-        parts[part_count] = "m=true";
-        part_count += 1;
-    }
-    if (has_a) {
-        parts[part_count] = "a=true";
-        part_count += 1;
-    }
-    if (has_f) {
-        parts[part_count] = "f=true";
-        part_count += 1;
-    }
-    if (has_d) {
-        parts[part_count] = "d=true";
-        part_count += 1;
-    }
-    if (has_c) {
-        parts[part_count] = "c=true";
-        part_count += 1;
-    }
-    if (has_vector) {
-        parts[part_count] = "v=true";
-        part_count += 1;
-
-        const vlen_bits = parseZvlBitsLowerBound(flags) orelse 128;
-        const vlen_opt = std.fmt.allocPrint(allocator, "vlen={d}", .{vlen_bits}) catch "vlen=128";
-        parts[part_count] = vlen_opt;
-        part_count += 1;
+    // Check for single-letter extensions (e.g., "m")
+    var i: usize = 0;
+    while (i < flags.len and flags[i] >= 'a' and flags[i] <= 'z') : (i += 1) {
+        const new_isa = std.mem.concat(allocator, u8, &.{ isa, flags[i .. i + 1] }) catch return "rv32";
+        isa = new_isa;
     }
 
-    const total_len = blk: {
-        var len: usize = 0;
-        for (parts[0..part_count]) |part| {
-            len += part.len + 1;
-        }
-        break :blk len;
-    };
+    // Check for multi-letter extensions (e.g., "zve32x", "zvl128b")
+    while (i < flags.len) {
+        if (flags[i] == '_') {
+            const start = i + 1;
+            i += 1;
+            while (i < flags.len and flags[i] != '_') i += 1;
 
-    const cpu_str = allocator.alloc(u8, total_len) catch return "rv32";
-    var pos: usize = 0;
-
-    for (parts[0..part_count], 0..) |part, i| {
-        if (i == 0) {
-            @memcpy(cpu_str[pos .. pos + part.len], part);
-            pos += part.len;
+            // Ensure start is less than or equal to i
+            if (start < i) {
+                const new_isa = std.mem.concat(allocator, u8, &.{ isa, "_", flags[start..i] }) catch return "rv32";
+                isa = new_isa;
+            }
         } else {
-            cpu_str[pos] = ',';
-            pos += 1;
-            @memcpy(cpu_str[pos .. pos + part.len], part);
-            pos += part.len;
+            i += 1;
         }
     }
 
-    return cpu_str[0..pos];
+    return isa;
 }
 
 pub fn addPlatformSteps(b: *std.Build, feature_profile: ?[]const u8, exe_base_name: []const u8, exe: *std.Build.Step.Compile) void {
     _ = exe_base_name;
 
-    const chosen_flags = feature_profile orelse std.debug.panic("Missing required -Dfeature for platform=qemu", .{});
+    const chosen_flags = feature_profile orelse std.debug.panic("Missing required -Dfeature for platform=remu", .{});
 
-    std.log.debug("Chosen flags: {s}", .{chosen_flags});
+    const cpu_config = remuCpuForFeatureFlags(b.allocator, chosen_flags);
 
-    const cpu_config = qemuCpuForFeatureFlags(b.allocator, chosen_flags);
-
-    const run_qemu = b.addSystemCommand(&.{
-        "qemu-system-riscv32",
-        "-machine",
-        "virt",
-        "-cpu",
+    const abs_elf_path = b.fmt("{s}/zig-out/remu/{s}", .{ b.pathFromRoot("."), exe.name });
+    const run_remu = b.addSystemCommand(&.{
+        "direnv",
+        "exec",
+        "../remu",
+        "just",
+        "--justfile",
+        "../remu/justfile",
+        "dev",
+        "--",
+        "--isa",
         cpu_config,
-        "-m",
-        "128M",
-        "-nographic",
-        "-serial",
-        "mon:stdio",
-        "-bios",
-        "none",
-        "-kernel",
+        "--mem",
+        "ram@0x8000_0000:0x8800_0000",
+        "--elf",
+        abs_elf_path,
     });
-    run_qemu.addFileArg(exe.getEmittedBin());
-    run_qemu.step.dependOn(b.getInstallStep());
+
+    run_remu.step.dependOn(b.getInstallStep());
 
     const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_qemu.step);
+    run_step.dependOn(&run_remu.step);
 }

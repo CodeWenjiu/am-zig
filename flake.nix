@@ -39,6 +39,9 @@
       {
         devShells.default = pkgs.mkShell {
           packages = [ DevEnv ];
+          shellHook = ''
+            export ZIG_GLOBAL_CACHE_DIR="$HOME/.cache/zig"
+          '';
         };
       }
     );
